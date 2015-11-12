@@ -1,0 +1,23 @@
+#!/bin/bash
+
+default_branch="akaros"
+reviewers="klueska rminnich GanShun"
+hooks_url="http://review.gerrithub.io/tools/hooks"
+
+top_dir="$(git rev-parse --show-toplevel)"
+hooks_dir="${top_dir}/.git/hooks"
+hooks_to_copy="commit-msg"
+
+for h in ${hooks_to_copy}; do
+	curl -Lo ${hooks_dir}/${h} ${hooks_url}/${h}
+	chmod u+x ${hooks_dir}/${h}
+done
+
+recieve_pack_args=
+for r in ${reviewers}; do
+	receive_pack_args="${receive_pack_args} --reviewer ${r}"
+done
+
+git config remote.origin.push HEAD:refs/for/${default_branch}
+git config remote.origin.receivepack "git receive-pack ${receive_pack_args}"
+
