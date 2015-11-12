@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+
+: ${project:="akaros/go-akaros"}
+: ${branch:="akaros"}
+: ${reviewers:="klueska rminnich GanShun"}
+: ${host:="review.gerrithub.io"}
+: ${port:="29418"}
+: ${remote:="gerrit"}
+
+top_dir="$(git rev-parse --show-toplevel)"
+hooks_dir="${top_dir}/.git/hooks"
+hooks_to_copy="commit-msg"
+hooks_url="http://${host}/tools/hooks"
+remote_url="ssh://${host}:${port}/${project}"
+
+for h in ${hooks_to_copy}; do
+	curl -Lo ${hooks_dir}/${h} ${hooks_url}/${h}
+	chmod u+x ${hooks_dir}/${h}
+done
+
+recieve_pack_args=
+for r in ${reviewers}; do
+	receive_pack_args="${receive_pack_args} --reviewer ${r}"
+done
+
+git remote remove ${remote} > /dev/null 2>&1
+git remote add ${remote} ${remote_url}
+git config remote.${remote}.push HEAD:refs/for/${branch}
+git config remote.${remote}.receivepack "git receive-pack ${receive_pack_args}"
+ 
+cat > ${top_dir}/.gitreview << EOF
+[gerrit]
+host=${host}
+port=${port}
+project=${project}
+defaultbranch=${branch}
+defaultremote=${remote}
+EOF

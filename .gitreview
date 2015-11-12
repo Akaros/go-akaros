@@ -1,0 +1,6 @@
+[gerrit]
+host=review.gerrithub.io
+port=29418
+project=akaros/go-akaros
+defaultbranch=akaros
+defaultremote=gerrit
