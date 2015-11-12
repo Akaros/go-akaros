@@ -1,0 +1,27 @@
+{
+  "comments": [
+    {
+      "key": {
+        "uuid": "7ac7a964_7f636a1a",
+        "filename": "misc/akaros/gerrit-setup",
+        "patchSetId": 1
+      },
+      "lineNbr": 18,
+      "author": {
+        "id": 1005273
+      },
+      "writtenOn": "2015-11-12T23:40:56Z",
+      "side": 1,
+      "message": "Fix this white space error you jackass!",
+      "range": {
+        "startLine": 18,
+        "startChar": 57,
+        "endLine": 18,
+        "endChar": 58
+      },
+      "revId": "156f3c9b990bd65cef4a90f8b5ac55ecf68039cb",
+      "serverId": "d5d70762-12d0-45a1-890d-524b12d3f735",
+      "unresolved": false
+    }
+  ]
+}
