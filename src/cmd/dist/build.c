@@ -457,6 +457,8 @@ static char *proto_gccargs[] = {
 	// so let gcc catch them.
 	"-Wstrict-prototypes",
 	"-Wextra",
+	"-Wimplicit-fallthrough=0",
+	"-Wno-shift-negative-value",
 	"-Wunused",
 	"-Wno-sign-compare",
 	"-Wno-missing-braces",

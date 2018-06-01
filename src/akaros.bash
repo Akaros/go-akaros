@@ -6,6 +6,7 @@ export GOARCH=amd64
 export CC_FOR_TARGET=x86_64-ucb-akaros-gcc
 export CXX_FOR_TARGET=x86_64-ucb-akaros-g++
 export GO_EXTLINK_ENABLED=1
+export CGO_ENABLED=0
 
 pre_host_build()
 {
