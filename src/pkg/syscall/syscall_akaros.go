@@ -272,15 +272,28 @@ func Exit(exitcode int) {
 	proc_destroy(int(parlib.Procinfo.Pid), exitcode)
 }
 
-//sys pipe(p *[2]_C_int, flags int) (err error)
 func Pipe(p []int, flags int) (err error) {
 	if len(p) != 2 {
 		return EINVAL
 	}
-	var pp [2]_C_int
-	err = pipe(&pp, flags)
-	p[0] = int(pp[0])
-	p[1] = int(pp[1])
+	dirfd, err := Open("#pipe", O_PATH | (flags & O_CLOEXEC), 0 )
+	if err != nil {
+		return
+	}
+	dfd, err := Openat(dirfd, "data", O_RDWR | flags, 0 )
+	if err != nil {
+		Close(dirfd);
+		return
+	}
+	d1fd, err := Openat(dirfd, "data1", O_RDWR | flags, 0 )
+	if err != nil {
+		Close(dfd);
+		Close(dirfd);
+		return
+	}
+	p[0] = dfd
+	p[1] = d1fd
+	Close(dirfd)
 	return
 }
 

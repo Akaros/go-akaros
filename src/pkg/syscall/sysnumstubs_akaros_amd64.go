@@ -116,5 +116,4 @@ const (
 	SYS_GETSOCKNAME                  = 415
 	SYS_RECVMSG                      = 416
 	SYS_SENDMSG                      = 417
-	SYS_PIPE                         = 1000
 )
