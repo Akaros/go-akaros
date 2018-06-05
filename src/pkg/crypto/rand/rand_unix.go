@@ -27,7 +27,7 @@ func init() {
 	if runtime.GOOS == "plan9" {
 		Reader = newReader(nil)
 	} else if runtime.GOOS == "akaros" {
-		Reader = newReader(&devReader{name: "#cons/random"})
+		Reader = newReader(&devReader{name: "#random/urandom"})
 	} else {
 		Reader = &devReader{name: "/dev/urandom"}
 	}
