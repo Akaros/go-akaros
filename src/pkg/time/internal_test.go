@@ -43,6 +43,9 @@ func CheckRuntimeTimerOverflow() error {
 	case "plan9":
 		// TODO(0intro): We don't know why it is needed.
 		timeout = 3 * Second
+	case "akaros":
+		// TODO(wheatman): We also don't know why it is needed.
+		timeout = Second
 	}
 
 	// Start a goroutine that should send on t.C before the timeout.
