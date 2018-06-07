@@ -297,6 +297,11 @@ func Pipe(p []int, flags int) (err error) {
 	return
 }
 
+//sys	mkdir(path string, length int, mode uint32) (err error)
+func Mkdir(path string, mode uint32) (err error) {
+	return mkdir(path, len(path), mode)
+}
+
 //sys	rename(oldpath string, ol int, newpath string, nl int) (err error)
 func Rename(oldpath string, newpath string) (err error) {
 	return rename(oldpath, len(oldpath), newpath, len(newpath))
@@ -1253,8 +1258,6 @@ func Mount(source string, target string, fstype string, flags uintptr, data stri
 //sys	Klogctl(typ int, buf []byte) (n int, err error) = SYS_SYSLOG
 //sys	Link(oldpath string, newpath string) (err error)
 //sys	Listxattr(path string, dest []byte) (sz int, err error)
-//sys	Mkdir(path string, mode uint32) (err error)
-//sys	Mkdirat(dirfd int, path string, mode uint32) (err error)
 //sys	Mknod(path string, mode uint32, dev int) (err error)
 //sys	Mknodat(dirfd int, path string, mode uint32, dev int) (err error)
 //sys	Nanosleep(time *Timespec, leftover *Timespec) (err error)
