@@ -116,10 +116,11 @@ adddynrel(LSym *s, Reloc *r)
 		return;		
 	
 	case 256 + R_386_GOT32:
+	case 256 + R_386_GOT32X:
 		if(targ->type != SDYNIMPORT) {
 			// have symbol
 			// turn MOVL of GOT entry into LEAL of symbol itself
-			if(r->off < 2 || s->p[r->off-2] != 0x8b) {
+			if(r->off < 2 && s->p[r->off-2] != 0x8b) {
 				diag("unexpected GOT reloc for non-dynamic symbol %s", targ->name);
 				return;
 			}

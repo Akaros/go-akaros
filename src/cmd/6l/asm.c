@@ -117,8 +117,9 @@ adddynrel(LSym *s, Reloc *r)
 			r->add += targ->plt;
 		}
 		return;
-	
 	case 256 + R_X86_64_GOTPCREL:
+	case 256 + R_X86_64_GOTPCRELX:
+	case 256 + R_X86_64_REX_GOTPCRELX:
 		if(targ->type != SDYNIMPORT) {
 			// have symbol
 			if(r->off >= 2 && s->p[r->off-2] == 0x8b) {
