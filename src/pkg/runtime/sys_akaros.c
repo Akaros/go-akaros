@@ -228,7 +228,7 @@ void time·now(int64 sec, int32 nsec)
 {
 	// NOTE: we should add real time base to the nsec since start,
 	// but gettimeofday syscall is missing on akaros.
-	int64 time = tsc2nsec(runtime·cputicks());
+	int64 time = tsc2nsec(runtime·cputicks() - __proc_global_info.tsc_cycles_last) + __proc_global_info.walltime_ns_last;
 	sec = time / 1000000000LL;
 	nsec = time - sec * 1000000000LL;
 	FLUSH(&sec);

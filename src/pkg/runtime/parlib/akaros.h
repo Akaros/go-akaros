@@ -10,6 +10,7 @@
 #ifdef _64BIT
 //#define UINFO 0x00007f7fffc00000
 static const uint64 UINFO = 0x00007f7fffc00000ULL;
+static const uint64 GINFO = 0x00007f7fffe00000ULL;
 #else
 //#define UINFO 0x7f800000
 static const uint32 UINFO = 0x7f800000UL;
@@ -19,3 +20,4 @@ static const uint32 UINFO = 0x7f800000UL;
 #define MAX(a, b)	((a > b) ? a : b)
 
 #define __procinfo (*(ProcinfoType*)UINFO)
+#define __proc_global_info (*(GlobalProcinfoType*)GINFO)

@@ -116,6 +116,7 @@ type Sigset C.sigset_t
 type Vcore C.struct_vcore
 type Pcore C.struct_pcore
 type ProcinfoType C.procinfo_t
+type GlobalProcinfoType C.struct_proc_global_info
 type Ucq C.struct_ucq
 type EventQueue C.struct_event_queue
 type EventMbox C.struct_event_mbox
