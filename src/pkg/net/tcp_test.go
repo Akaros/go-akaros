@@ -517,7 +517,7 @@ func TestTCPReadWriteMallocs(t *testing.T) {
 	}
 	defer server.Close()
 	var buf [128]byte
-	mallocs := testing.AllocsPerRun(1000, func() {
+	mallocs := testing.AllocsPerRun(1, func() {
 		_, err := server.Write(buf[:])
 		if err != nil {
 			t.Fatalf("Write failed: %v", err)
@@ -527,7 +527,12 @@ func TestTCPReadWriteMallocs(t *testing.T) {
 			t.Fatalf("Read failed: %v", err)
 		}
 	})
-	if mallocs > 0 {
+	// akaros has an alloc per syscall
+	if runtime.GOOS == "akaros" {
+		if mallocs > 2 {
+			t.Fatalf("Got %v allocs, want 2", mallocs)
+		}
+	} else if mallocs > 0 {
 		t.Fatalf("Got %v allocs, want 0", mallocs)
 	}
 }
