@@ -144,6 +144,11 @@ func (fd *netFD) Read(b []byte) (n int, err error) {
 	if !fd.ok() || fd.data == nil {
 		return 0, syscall.EINVAL
 	}
+	if fd.readDeadline > 0 && time.Now().UnixNano()/1000 > fd.readDeadline {
+		n = 0
+		err = errTimeout
+		return
+	}
 	if err := fd.readLock(); err != nil {
 		return 0, err
 	}
@@ -162,6 +167,11 @@ func (fd *netFD) Read(b []byte) (n int, err error) {
 func (fd *netFD) Write(b []byte) (n int, err error) {
 	if !fd.ok() || fd.data == nil {
 		return 0, syscall.EINVAL
+	}
+	if fd.writeDeadline > 0 && time.Now().UnixNano()/1000 > fd.writeDeadline {
+		n = 0
+		err = errTimeout
+		return
 	}
 	if err := fd.writeLock(); err != nil {
 		return 0, err
