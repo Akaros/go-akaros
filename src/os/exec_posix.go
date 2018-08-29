@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build darwin dragonfly freebsd linux nacl netbsd openbsd solaris windows
+// +build darwin dragonfly freebsd js,wasm linux nacl netbsd openbsd solaris windows
 
 package os
 
@@ -10,9 +10,10 @@ import (
 	"syscall"
 )
 
-// The only signal values guaranteed to be present on all systems
-// are Interrupt (send the process an interrupt) and Kill (force
-// the process to exit).
+// The only signal values guaranteed to be present in the os package
+// on all systems are Interrupt (send the process an interrupt) and
+// Kill (force the process to exit). Interrupt is not implemented on
+// Windows; using it with os.Process.Signal will return an error.
 var (
 	Interrupt Signal = syscall.SIGINT
 	Kill      Signal = syscall.SIGKILL
@@ -21,7 +22,7 @@ var (
 func startProcess(name string, argv []string, attr *ProcAttr) (p *Process, err error) {
 	// If there is no SysProcAttr (ie. no Chroot or changed
 	// UID/GID), double-check existence of the directory we want
-	// to chdir into.  We can make the error clearer this way.
+	// to chdir into. We can make the error clearer this way.
 	if attr != nil && attr.Sys == nil && attr.Dir != "" {
 		if _, err := Stat(attr.Dir); err != nil {
 			pe := err.(*PathError)
@@ -104,4 +105,14 @@ func (p *ProcessState) String() string {
 		res += " (core dumped)"
 	}
 	return res
+}
+
+// ExitCode returns the exit code of the exited process, or -1
+// if the process hasn't exited or was terminated by a signal.
+func (p *ProcessState) ExitCode() int {
+	// return -1 if the process hasn't started.
+	if p == nil {
+		return -1
+	}
+	return p.status.ExitStatus()
 }

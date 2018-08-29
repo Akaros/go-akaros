@@ -1,4 +1,4 @@
-// Copyright 2010 The Go Authors.  All rights reserved.
+// Copyright 2010 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -30,6 +30,8 @@ void uuid_generate(cgo_uuid_t x) {
 struct S {
 	int x;
 };
+
+const char *cstr = "abcefghijklmnopqrstuvwxyzABCEFGHIJKLMNOPQRSTUVWXYZ1234567890";
 
 extern enum E myConstFunc(struct S* const ctx, int const id, struct S **const filter);
 
@@ -149,6 +151,18 @@ func benchCgoCall(b *testing.B) {
 	}
 }
 
+var sinkString string
+
+func benchGoString(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		sinkString = C.GoString(C.cstr)
+	}
+	const want = "abcefghijklmnopqrstuvwxyzABCEFGHIJKLMNOPQRSTUVWXYZ1234567890"
+	if sinkString != want {
+		b.Fatalf("%q != %q", sinkString, want)
+	}
+}
+
 // Issue 2470.
 func testUnsignedInt(t *testing.T) {
 	a := (int64)(C.UINT32VAL)
@@ -162,3 +176,6 @@ func testUnsignedInt(t *testing.T) {
 func sliceOperands(array [2000]int) {
 	_ = array[C.KILO:C.KILO:C.KILO] // no type error
 }
+
+// set in cgo_thread_lock.go init
+var testThreadLockFunc = func(*testing.T) {}

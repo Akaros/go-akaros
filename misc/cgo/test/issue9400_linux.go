@@ -1,4 +1,4 @@
-// Copyright 2014 The Go Authors.  All rights reserved.
+// Copyright 2014 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -41,7 +41,7 @@ func test9400(t *testing.T) {
 
 	// Grow the stack and put down a test pattern
 	const pattern = 0x123456789abcdef
-	var big [1024]uint64 // len must match assmebly
+	var big [1024]uint64 // len must match assembly
 	for i := range big {
 		big[i] = pattern
 	}

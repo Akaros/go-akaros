@@ -37,7 +37,7 @@ func volumeNameLen(path string) int {
 	if path[1] == ':' && ('a' <= c && c <= 'z' || 'A' <= c && c <= 'Z') {
 		return 2
 	}
-	// is it UNC
+	// is it UNC? https://msdn.microsoft.com/en-us/library/windows/desktop/aa365247(v=vs.85).aspx
 	if l := len(path); l >= 5 && isSlash(path[0]) && isSlash(path[1]) &&
 		!isSlash(path[2]) && path[2] != '.' {
 		// first, leading `\\` and next shouldn't be `\`. its server name.
@@ -65,6 +65,9 @@ func volumeNameLen(path string) int {
 }
 
 // HasPrefix exists for historical compatibility and should not be used.
+//
+// Deprecated: HasPrefix does not respect path boundaries and
+// does not ignore case when required.
 func HasPrefix(p, prefix string) bool {
 	if strings.HasPrefix(p, prefix) {
 		return true
@@ -97,16 +100,24 @@ func splitList(path string) []string {
 
 	// Remove quotes.
 	for i, s := range list {
-		if strings.Contains(s, `"`) {
-			list[i] = strings.Replace(s, `"`, ``, -1)
-		}
+		list[i] = strings.Replace(s, `"`, ``, -1)
 	}
 
 	return list
 }
 
 func abs(path string) (string, error) {
-	return syscall.FullPath(path)
+	if path == "" {
+		// syscall.FullPath returns an error on empty path, because it's not a valid path.
+		// To implement Abs behavior of returning working directory on empty string input,
+		// special-case empty path by changing it to "." path. See golang.org/issue/24441.
+		path = "."
+	}
+	fullPath, err := syscall.FullPath(path)
+	if err != nil {
+		return "", err
+	}
+	return Clean(fullPath), nil
 }
 
 func join(elem []string) string {
@@ -120,6 +131,18 @@ func join(elem []string) string {
 
 // joinNonEmpty is like join, but it assumes that the first element is non-empty.
 func joinNonEmpty(elem []string) string {
+	if len(elem[0]) == 2 && elem[0][1] == ':' {
+		// First element is drive letter without terminating slash.
+		// Keep path relative to current directory on that drive.
+		// Skip empty elements.
+		i := 1
+		for ; i < len(elem); i++ {
+			if elem[i] != "" {
+				break
+			}
+		}
+		return Clean(elem[0] + strings.Join(elem[i:], string(Separator)))
+	}
 	// The following logic prevents Join from inadvertently creating a
 	// UNC path on Windows. Unless the first element is a UNC path, Join
 	// shouldn't create a UNC path. See golang.org/issue/9167.
@@ -144,4 +167,8 @@ func joinNonEmpty(elem []string) string {
 // isUNC reports whether path is a UNC path.
 func isUNC(path string) bool {
 	return volumeNameLen(path) > 2
+}
+
+func sameWord(a, b string) bool {
+	return strings.EqualFold(a, b)
 }

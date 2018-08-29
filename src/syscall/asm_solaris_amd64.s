@@ -23,15 +23,6 @@ TEXT ·chroot1(SB),NOSPLIT,$0
 TEXT ·close(SB),NOSPLIT,$0
 	JMP	runtime·syscall_close(SB)
 
-TEXT ·dlopen(SB),NOSPLIT,$0
-	JMP	runtime·syscall_dlopen(SB)
-
-TEXT ·dlclose(SB),NOSPLIT,$0
-	JMP	runtime·syscall_dlclose(SB)
-
-TEXT ·dlsym(SB),NOSPLIT,$0
-	JMP	runtime·syscall_dlsym(SB)
-
 TEXT ·execve(SB),NOSPLIT,$0
 	JMP	runtime·syscall_execve(SB)
 
@@ -47,6 +38,9 @@ TEXT ·forkx(SB),NOSPLIT,$0
 TEXT ·gethostname(SB),NOSPLIT,$0
 	JMP	runtime·syscall_gethostname(SB)
 
+TEXT ·getpid(SB),NOSPLIT,$0
+	JMP	runtime·syscall_getpid(SB)
+
 TEXT ·ioctl(SB),NOSPLIT,$0
 	JMP	runtime·syscall_ioctl(SB)
 
@@ -55,6 +49,9 @@ TEXT ·pipe(SB),NOSPLIT,$0
 
 TEXT ·RawSyscall(SB),NOSPLIT,$0
 	JMP	runtime·syscall_rawsyscall(SB)
+
+TEXT ·RawSyscall6(SB),NOSPLIT,$0
+	JMP	runtime·syscall_rawsyscall6(SB)
 
 TEXT ·setgid(SB),NOSPLIT,$0
 	JMP	runtime·syscall_setgid(SB)

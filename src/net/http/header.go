@@ -1,4 +1,4 @@
-// Copyright 2010 The Go Authors.  All rights reserved.
+// Copyright 2010 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -6,14 +6,13 @@ package http
 
 import (
 	"io"
+	"net/http/httptrace"
 	"net/textproto"
 	"sort"
 	"strings"
 	"sync"
 	"time"
 )
-
-var raceEnabled = false // set by race.go
 
 // A Header represents the key-value pairs in an HTTP header.
 type Header map[string][]string
@@ -25,16 +24,18 @@ func (h Header) Add(key, value string) {
 }
 
 // Set sets the header entries associated with key to
-// the single element value.  It replaces any existing
+// the single element value. It replaces any existing
 // values associated with key.
 func (h Header) Set(key, value string) {
 	textproto.MIMEHeader(h).Set(key, value)
 }
 
 // Get gets the first value associated with the given key.
+// It is case insensitive; textproto.CanonicalMIMEHeaderKey is used
+// to canonicalize the provided key.
 // If there are no values associated with the key, Get returns "".
-// To access multiple values of a key, access the map directly
-// with CanonicalHeaderKey.
+// To access multiple values of a key, or to use non-canonical keys,
+// access the map directly.
 func (h Header) Get(key string) string {
 	return textproto.MIMEHeader(h).Get(key)
 }
@@ -54,7 +55,11 @@ func (h Header) Del(key string) {
 
 // Write writes a header in wire format.
 func (h Header) Write(w io.Writer) error {
-	return h.WriteSubset(w, nil)
+	return h.write(w, nil)
+}
+
+func (h Header) write(w io.Writer, trace *httptrace.ClientTrace) error {
+	return h.writeSubset(w, nil, trace)
 }
 
 func (h Header) clone() Header {
@@ -143,20 +148,33 @@ func (h Header) sortedKeyValues(exclude map[string]bool) (kvs []keyValues, hs *h
 // WriteSubset writes a header in wire format.
 // If exclude is not nil, keys where exclude[key] == true are not written.
 func (h Header) WriteSubset(w io.Writer, exclude map[string]bool) error {
+	return h.writeSubset(w, exclude, nil)
+}
+
+func (h Header) writeSubset(w io.Writer, exclude map[string]bool, trace *httptrace.ClientTrace) error {
 	ws, ok := w.(writeStringer)
 	if !ok {
 		ws = stringWriter{w}
 	}
 	kvs, sorter := h.sortedKeyValues(exclude)
+	var formattedVals []string
 	for _, kv := range kvs {
 		for _, v := range kv.values {
 			v = headerNewlineToSpace.Replace(v)
 			v = textproto.TrimString(v)
 			for _, s := range []string{kv.key, ": ", v, "\r\n"} {
 				if _, err := ws.WriteString(s); err != nil {
+					headerSorterPool.Put(sorter)
 					return err
 				}
 			}
+			if trace != nil && trace.WroteHeaderField != nil {
+				formattedVals = append(formattedVals, v)
+			}
+		}
+		if trace != nil && trace.WroteHeaderField != nil {
+			trace.WroteHeaderField(kv.key, formattedVals)
+			formattedVals = nil
 		}
 	}
 	headerSorterPool.Put(sorter)
@@ -164,10 +182,12 @@ func (h Header) WriteSubset(w io.Writer, exclude map[string]bool) error {
 }
 
 // CanonicalHeaderKey returns the canonical format of the
-// header key s.  The canonicalization converts the first
+// header key s. The canonicalization converts the first
 // letter and any letter following a hyphen to upper case;
-// the rest are converted to lowercase.  For example, the
+// the rest are converted to lowercase. For example, the
 // canonical key for "accept-encoding" is "Accept-Encoding".
+// If s contains a space or invalid header field bytes, it is
+// returned without modifications.
 func CanonicalHeaderKey(s string) string { return textproto.CanonicalMIMEHeaderKey(s) }
 
 // hasToken reports whether token appears with v, ASCII
@@ -184,7 +204,7 @@ func hasToken(v, token string) bool {
 	for sp := 0; sp <= len(v)-len(token); sp++ {
 		// Check that first character is good.
 		// The token is ASCII, so checking only a single byte
-		// is sufficient.  We skip this potential starting
+		// is sufficient. We skip this potential starting
 		// position if both the first byte and its potential
 		// ASCII uppercase equivalent (b|0x20) don't match.
 		// False positives ('^' => '~') are caught by EqualFold.
@@ -208,4 +228,14 @@ func hasToken(v, token string) bool {
 
 func isTokenBoundary(b byte) bool {
 	return b == ' ' || b == ',' || b == '\t'
+}
+
+func cloneHeader(h Header) Header {
+	h2 := make(Header, len(h))
+	for k, vv := range h {
+		vv2 := make([]string, len(vv))
+		copy(vv2, vv)
+		h2[k] = vv2
+	}
+	return h2
 }

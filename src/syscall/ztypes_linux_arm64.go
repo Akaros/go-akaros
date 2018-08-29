@@ -1,6 +1,8 @@
 // Created by cgo -godefs - DO NOT EDIT
 // cgo -godefs -- -fsigned-char types_linux.go
 
+// +build arm64,linux
+
 package syscall
 
 const (
@@ -241,10 +243,9 @@ type Msghdr struct {
 }
 
 type Cmsghdr struct {
-	Len          uint64
-	Level        int32
-	Type         int32
-	X__cmsg_data [0]uint8
+	Len   uint64
+	Level int32
+	Type  int32
 }
 
 type Inet4Pktinfo struct {
@@ -571,6 +572,7 @@ const (
 	_AT_FDCWD            = -0x64
 	_AT_REMOVEDIR        = 0x200
 	_AT_SYMLINK_NOFOLLOW = 0x100
+	_AT_EACCESS          = 0x200
 )
 
 type Termios struct {

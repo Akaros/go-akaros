@@ -1,5 +1,5 @@
 // Inferno utils/5c/list.c
-// http://code.google.com/p/inferno-os/source/browse/utils/5c/list.c
+// https://bitbucket.org/inferno-os/inferno-os/src/default/utils/5c/list.c
 //
 //	Copyright © 1994-1999 Lucent Technologies Inc.  All rights reserved.
 //	Portions Copyright © 1995-1997 C H Forsyth (forsyth@terzarima.net)
@@ -8,7 +8,7 @@
 //	Portions Copyright © 2004,2006 Bruce Ellis
 //	Portions Copyright © 2005-2007 C H Forsyth (forsyth@terzarima.net)
 //	Revisions Copyright © 2000-2007 Lucent Technologies Inc. and others
-//	Portions Copyright © 2009 The Go Authors.  All rights reserved.
+//	Portions Copyright © 2009 The Go Authors. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -36,11 +36,13 @@ import (
 )
 
 func init() {
-	obj.RegisterRegister(obj.RBaseARM, MAXREG, Rconv)
+	obj.RegisterRegister(obj.RBaseARM, MAXREG, rconv)
 	obj.RegisterOpcode(obj.ABaseARM, Anames)
+	obj.RegisterRegisterList(obj.RegListARMLo, obj.RegListARMHi, rlconv)
+	obj.RegisterOpSuffix("arm", obj.CConvARM)
 }
 
-func Rconv(r int) string {
+func rconv(r int) string {
 	if r == 0 {
 		return "NONE"
 	}
@@ -67,6 +69,23 @@ func Rconv(r int) string {
 
 	case REG_SPSR:
 		return "SPSR"
+
+	case REG_MB_SY:
+		return "MB_SY"
+	case REG_MB_ST:
+		return "MB_ST"
+	case REG_MB_ISH:
+		return "MB_ISH"
+	case REG_MB_ISHST:
+		return "MB_ISHST"
+	case REG_MB_NSH:
+		return "MB_NSH"
+	case REG_MB_NSHST:
+		return "MB_NSHST"
+	case REG_MB_OSH:
+		return "MB_OSH"
+	case REG_MB_OSHST:
+		return "MB_OSHST"
 	}
 
 	return fmt.Sprintf("Rgok(%d)", r-obj.RBaseARM)
@@ -80,4 +99,26 @@ func DRconv(a int) string {
 	var fp string
 	fp += s
 	return fp
+}
+
+func rlconv(list int64) string {
+	str := ""
+	for i := 0; i < 16; i++ {
+		if list&(1<<uint(i)) != 0 {
+			if str == "" {
+				str += "["
+			} else {
+				str += ","
+			}
+			// This is ARM-specific; R10 is g.
+			if i == REGG-REG_R0 {
+				str += "g"
+			} else {
+				str += fmt.Sprintf("R%d", i)
+			}
+		}
+	}
+
+	str += "]"
+	return str
 }

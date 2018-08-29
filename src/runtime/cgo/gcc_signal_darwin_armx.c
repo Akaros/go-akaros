@@ -1,4 +1,4 @@
-// Copyright 2015 The Go Authors.  All rights reserved.
+// Copyright 2015 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -15,14 +15,11 @@
 // chance to resolve exceptions before the task handler, so we can generate
 // the panic and avoid lldb's SIGSEGV handler.
 //
-// If you want to debug a segfault under lldb, compile the standard library
-// with the build tag lldb:
-//
-//	go test -tags lldb -installsuffix lldb
+// The dist tool enables this by build flag when testing.
 
-// +build darwin,arm,!lldb
-
-// TODO(crawshaw): darwin,arm64,!lldb
+// +build lldb
+// +build darwin
+// +build arm arm64
 
 #include <limits.h>
 #include <pthread.h>
@@ -40,8 +37,10 @@
 #include <mach/thread_status.h>
 
 #include "libcgo.h"
+#include "libcgo_unix.h"
 
-uintptr_t x_cgo_panicmem;
+void xx_cgo_panicmem(void);
+uintptr_t x_cgo_panicmem = (uintptr_t)xx_cgo_panicmem;
 
 static pthread_mutex_t mach_exception_handler_port_set_mu;
 static mach_port_t mach_exception_handler_port_set = MACH_PORT_NULL;
@@ -77,9 +76,31 @@ catch_exception_raise(
 
 	// Bounce call to sigpanic through asm that makes it look like
 	// we call sigpanic directly from the faulting code.
+#ifdef __arm64__
+	thread_state.ts_64.__x[1] = thread_state.ts_64.__lr;
+	thread_state.ts_64.__x[2] = thread_state.ts_64.__pc;
+	thread_state.ts_64.__pc = x_cgo_panicmem;
+#else
 	thread_state.ts_32.__r[1] = thread_state.ts_32.__lr;
 	thread_state.ts_32.__r[2] = thread_state.ts_32.__pc;
 	thread_state.ts_32.__pc = x_cgo_panicmem;
+#endif
+
+	if (0) {
+		// Useful debugging logic when panicmem is broken.
+		//
+		// Sends the first SIGSEGV and lets lldb catch the
+		// second one, avoiding a loop that locks up iOS
+		// devices requiring a hard reboot.
+		fprintf(stderr, "runtime/cgo: caught exc_bad_access\n");
+		fprintf(stderr, "__lr = %llx\n", thread_state.ts_64.__lr);
+		fprintf(stderr, "__pc = %llx\n", thread_state.ts_64.__pc);
+		static int pass1 = 0;
+		if (pass1) {
+			return KERN_FAILURE;
+		}
+		pass1 = 1;
+	}
 
 	ret = thread_set_state(thread, ARM_UNIFIED_THREAD_STATE, (thread_state_t)&thread_state, state_count);
 	if (ret) {
@@ -163,6 +184,7 @@ darwin_arm_init_mach_exception_handler()
 	int ret;
 	pthread_t thr = NULL;
 	pthread_attr_t attr;
+	sigset_t ign, oset;
 
 	ret = mach_port_allocate(
 		mach_task_self(),
@@ -173,10 +195,18 @@ darwin_arm_init_mach_exception_handler()
 		abort();
 	}
 
+	// Block all signals to the exception handler thread
+	sigfillset(&ign);
+	pthread_sigmask(SIG_SETMASK, &ign, &oset);
+
 	// Start a thread to handle exceptions.
+	uintptr_t port_set = (uintptr_t)mach_exception_handler_port_set;
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-	ret = pthread_create(&thr, &attr, mach_exception_handler, (void*)mach_exception_handler_port_set);
+	ret = _cgo_try_pthread_create(&thr, &attr, mach_exception_handler, (void*)port_set);
+
+	pthread_sigmask(SIG_SETMASK, &oset, nil);
+
 	if (ret) {
 		fprintf(stderr, "runtime/cgo: pthread_create failed: %d\n", ret);
 		abort();

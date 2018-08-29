@@ -1,7 +1,7 @@
 // Inferno's libkern/memmove-arm.s
-// http://code.google.com/p/inferno-os/source/browse/libkern/memmove-arm.s
+// https://bitbucket.org/inferno-os/inferno-os/src/default/libkern/memmove-arm.s
 //
-//         Copyright © 1994-1999 Lucent Technologies Inc.  All rights reserved.
+//         Copyright © 1994-1999 Lucent Technologies Inc. All rights reserved.
 //         Revisions Copyright © 2000-2007 Vita Nuova Holdings Limited (www.vitanuova.com).  All rights reserved.
 //         Portions Copyright 2009 The Go Authors. All rights reserved.
 //
@@ -58,6 +58,7 @@
 #define FW3	R4
 #define FR3	R8					/* shared with TE */
 
+// func memmove(to, from unsafe.Pointer, n uintptr)
 TEXT runtime·memmove(SB), NOSPLIT, $4-12
 _memmove:
 	MOVW	to+0(FP), TS

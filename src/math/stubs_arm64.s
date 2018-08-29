@@ -1,4 +1,4 @@
-// Copyright 2014 The Go Authors.  All rights reserved.
+// Copyright 2014 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -12,38 +12,35 @@ TEXT ·Asin(SB),NOSPLIT,$0
 TEXT ·Acos(SB),NOSPLIT,$0
 	B ·acos(SB)
 
+TEXT ·Asinh(SB),NOSPLIT,$0
+        B ·asinh(SB)
+
+TEXT ·Acosh(SB),NOSPLIT,$0
+        B ·acosh(SB)
+
 TEXT ·Atan2(SB),NOSPLIT,$0
 	B ·atan2(SB)
 
 TEXT ·Atan(SB),NOSPLIT,$0
 	B ·atan(SB)
 
-TEXT ·Dim(SB),NOSPLIT,$0
-	B ·dim(SB)
+TEXT ·Atanh(SB),NOSPLIT,$0
+	B ·atanh(SB)
 
-TEXT ·Min(SB),NOSPLIT,$0
-	B ·min(SB)
+TEXT ·Erf(SB),NOSPLIT,$0
+	B ·erf(SB)
 
-TEXT ·Max(SB),NOSPLIT,$0
-	B ·max(SB)
+TEXT ·Erfc(SB),NOSPLIT,$0
+	B ·erfc(SB)
 
-TEXT ·Exp2(SB),NOSPLIT,$0
-	B ·exp2(SB)
+TEXT ·Cbrt(SB),NOSPLIT,$0
+	B ·cbrt(SB)
+
+TEXT ·Cosh(SB),NOSPLIT,$0
+	B ·cosh(SB)
 
 TEXT ·Expm1(SB),NOSPLIT,$0
 	B ·expm1(SB)
-
-TEXT ·Exp(SB),NOSPLIT,$0
-	B ·exp(SB)
-
-TEXT ·Floor(SB),NOSPLIT,$0
-	B ·floor(SB)
-
-TEXT ·Ceil(SB),NOSPLIT,$0
-	B ·ceil(SB)
-
-TEXT ·Trunc(SB),NOSPLIT,$0
-	B ·trunc(SB)
 
 TEXT ·Frexp(SB),NOSPLIT,$0
 	B ·frexp(SB)
@@ -66,26 +63,26 @@ TEXT ·Log1p(SB),NOSPLIT,$0
 TEXT ·Log(SB),NOSPLIT,$0
 	B ·log(SB)
 
-TEXT ·Modf(SB),NOSPLIT,$0
-	B ·modf(SB)
-
 TEXT ·Mod(SB),NOSPLIT,$0
 	B ·mod(SB)
 
 TEXT ·Remainder(SB),NOSPLIT,$0
 	B ·remainder(SB)
 
-TEXT ·Sincos(SB),NOSPLIT,$0
-	B ·sincos(SB)
-
 TEXT ·Sin(SB),NOSPLIT,$0
 	B ·sin(SB)
+
+TEXT ·Sinh(SB),NOSPLIT,$0
+	B ·sinh(SB)
 
 TEXT ·Cos(SB),NOSPLIT,$0
 	B ·cos(SB)
 
-TEXT ·Sqrt(SB),NOSPLIT,$0
-	B ·sqrt(SB)
-
 TEXT ·Tan(SB),NOSPLIT,$0
 	B ·tan(SB)
+
+TEXT ·Tanh(SB),NOSPLIT,$0
+	B ·tanh(SB)
+
+TEXT ·Pow(SB),NOSPLIT,$0
+	B ·pow(SB)

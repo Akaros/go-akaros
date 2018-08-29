@@ -5,6 +5,8 @@
 package os_test
 
 import (
+	"fmt"
+	"internal/testenv"
 	"io/ioutil"
 	. "os"
 	"path/filepath"
@@ -147,7 +149,7 @@ func TestRemoveAll(t *testing.T) {
 		// No error checking here: either RemoveAll
 		// will or won't be able to remove dpath;
 		// either way we want to see if it removes fpath
-		// and path/zzz.  Reasons why RemoveAll might
+		// and path/zzz. Reasons why RemoveAll might
 		// succeed in removing dpath as well include:
 		//	* running as root
 		//	* running on a file system without permissions (FAT)
@@ -168,15 +170,38 @@ func TestRemoveAll(t *testing.T) {
 	}
 }
 
-func TestMkdirAllWithSymlink(t *testing.T) {
-	switch runtime.GOOS {
-	case "nacl", "plan9":
-		t.Skipf("skipping on %s", runtime.GOOS)
-	case "windows":
-		if !supportsSymlinks {
-			t.Skipf("skipping on %s", runtime.GOOS)
-		}
+// Test RemoveAll on a large directory.
+func TestRemoveAllLarge(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping in short mode")
 	}
+
+	tmpDir := TempDir()
+	// Work directory.
+	path := tmpDir + "/_TestRemoveAllLarge_"
+
+	// Make directory with 1000 files and remove.
+	if err := MkdirAll(path, 0777); err != nil {
+		t.Fatalf("MkdirAll %q: %s", path, err)
+	}
+	for i := 0; i < 1000; i++ {
+		fpath := fmt.Sprintf("%s/file%d", path, i)
+		fd, err := Create(fpath)
+		if err != nil {
+			t.Fatalf("create %q: %s", fpath, err)
+		}
+		fd.Close()
+	}
+	if err := RemoveAll(path); err != nil {
+		t.Fatalf("RemoveAll %q: %s", path, err)
+	}
+	if _, err := Lstat(path); err == nil {
+		t.Fatalf("Lstat %q succeeded after RemoveAll", path)
+	}
+}
+
+func TestMkdirAllWithSymlink(t *testing.T) {
+	testenv.MustHaveSymlink(t)
 
 	tmpDir, err := ioutil.TempDir("", "TestMkdirAllWithSymlink-")
 	if err != nil {
@@ -208,7 +233,8 @@ func TestMkdirAllAtSlash(t *testing.T) {
 	case "android", "plan9", "windows":
 		t.Skipf("skipping on %s", runtime.GOOS)
 	case "darwin":
-		if runtime.GOARCH == "arm" {
+		switch runtime.GOARCH {
+		case "arm", "arm64":
 			t.Skipf("skipping on darwin/%s, mkdir returns EPERM", runtime.GOARCH)
 		}
 	}

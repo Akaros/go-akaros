@@ -1,4 +1,4 @@
-// Copyright 2009 The Go Authors.  All rights reserved.
+// Copyright 2009 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -61,13 +61,20 @@ func (d *Data) parseUnits() ([]unit, error) {
 		u.base = b.off
 		var n Offset
 		n, u.is64 = b.unitLength()
+		dataOff := b.off
 		vers := b.uint16()
 		if vers != 2 && vers != 3 && vers != 4 {
 			b.error("unsupported DWARF version " + strconv.Itoa(int(vers)))
 			break
 		}
 		u.vers = int(vers)
-		atable, err := d.parseAbbrev(b.uint32())
+		var abbrevOff uint64
+		if u.is64 {
+			abbrevOff = b.uint64()
+		} else {
+			abbrevOff = uint64(b.uint32())
+		}
+		atable, err := d.parseAbbrev(abbrevOff, u.vers)
 		if err != nil {
 			if b.err == nil {
 				b.err = err
@@ -77,7 +84,7 @@ func (d *Data) parseUnits() ([]unit, error) {
 		u.atable = atable
 		u.asize = int(b.uint8())
 		u.off = b.off
-		u.data = b.bytes(int(n - (2 + 4 + 1)))
+		u.data = b.bytes(int(n - (b.off - dataOff)))
 	}
 	if b.err != nil {
 		return nil, b.err

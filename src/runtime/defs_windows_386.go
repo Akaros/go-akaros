@@ -107,9 +107,35 @@ func (c *context) sp() uintptr { return uintptr(c.esp) }
 func (c *context) setip(x uintptr) { c.eip = uint32(x) }
 func (c *context) setsp(x uintptr) { c.esp = uint32(x) }
 
+func dumpregs(r *context) {
+	print("eax     ", hex(r.eax), "\n")
+	print("ebx     ", hex(r.ebx), "\n")
+	print("ecx     ", hex(r.ecx), "\n")
+	print("edx     ", hex(r.edx), "\n")
+	print("edi     ", hex(r.edi), "\n")
+	print("esi     ", hex(r.esi), "\n")
+	print("ebp     ", hex(r.ebp), "\n")
+	print("esp     ", hex(r.esp), "\n")
+	print("eip     ", hex(r.eip), "\n")
+	print("eflags  ", hex(r.eflags), "\n")
+	print("cs      ", hex(r.segcs), "\n")
+	print("fs      ", hex(r.segfs), "\n")
+	print("gs      ", hex(r.seggs), "\n")
+}
+
 type overlapped struct {
 	internal     uint32
 	internalhigh uint32
 	anon0        [8]byte
 	hevent       *byte
+}
+
+type memoryBasicInformation struct {
+	baseAddress       uintptr
+	allocationBase    uintptr
+	allocationProtect uint32
+	regionSize        uintptr
+	state             uint32
+	protect           uint32
+	type_             uint32
 }

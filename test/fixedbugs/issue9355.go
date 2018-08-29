@@ -1,6 +1,6 @@
 // run
 
-// Copyright 2014 The Go Authors.  All rights reserved.
+// Copyright 2014 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -8,7 +8,6 @@ package main
 
 import (
 	"fmt"
-	"go/build"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,17 +16,15 @@ import (
 )
 
 func main() {
-	if runtime.Compiler != "gc" || runtime.GOOS == "nacl" {
+	if runtime.Compiler != "gc" || runtime.GOOS == "nacl" || runtime.GOOS == "js" {
 		return
 	}
-	a, err := build.ArchChar(runtime.GOARCH)
+
+	err := os.Chdir(filepath.Join("fixedbugs", "issue9355.dir"))
 	check(err)
 
-	err = os.Chdir(filepath.Join("fixedbugs", "issue9355.dir"))
-	check(err)
-
-	out := run("go", "tool", a+"g", "-S", "a.go")
-	os.Remove("a." + a)
+	out := run("go", "tool", "compile", "-S", "a.go")
+	os.Remove("a.o")
 
 	// 6g/8g print the offset as dec, but 5g/9g print the offset as hex.
 	patterns := []string{

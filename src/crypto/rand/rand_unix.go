@@ -1,4 +1,4 @@
-// Copyright 2010 The Go Authors.  All rights reserved.
+// Copyright 2010 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -13,6 +13,7 @@ import (
 	"bufio"
 	"crypto/aes"
 	"crypto/cipher"
+	"encoding/binary"
 	"io"
 	"os"
 	"runtime"
@@ -84,7 +85,7 @@ func (hr hideAgainReader) Read(p []byte) (n int, err error) {
 // systems without a reliable /dev/urandom.
 
 // newReader returns a new pseudorandom generator that
-// seeds itself by reading from entropy.  If entropy == nil,
+// seeds itself by reading from entropy. If entropy == nil,
 // the generator seeds itself by reading from the system's
 // random number generator, typically /dev/random.
 // The Read method on the returned reader always returns
@@ -137,14 +138,7 @@ func (r *reader) Read(b []byte) (n int, err error) {
 		// dst = encrypt(t^seed)
 		// seed = encrypt(t^dst)
 		ns := time.Now().UnixNano()
-		r.time[0] = byte(ns >> 56)
-		r.time[1] = byte(ns >> 48)
-		r.time[2] = byte(ns >> 40)
-		r.time[3] = byte(ns >> 32)
-		r.time[4] = byte(ns >> 24)
-		r.time[5] = byte(ns >> 16)
-		r.time[6] = byte(ns >> 8)
-		r.time[7] = byte(ns)
+		binary.BigEndian.PutUint64(r.time[:], uint64(ns))
 		r.cipher.Encrypt(r.time[0:], r.time[0:])
 		for i := 0; i < aes.BlockSize; i++ {
 			r.dst[i] = r.time[i] ^ r.seed[i]

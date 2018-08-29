@@ -1,4 +1,4 @@
-// Copyright 2009 The Go Authors.  All rights reserved.
+// Copyright 2009 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -24,7 +24,7 @@ func hostname() (name string, err error) {
 			return "", NewSyscallError("ComputerNameEx", err)
 		}
 
-		// If we received a ERROR_MORE_DATA, but n doesn't get larger,
+		// If we received an ERROR_MORE_DATA, but n doesn't get larger,
 		// something has gone wrong and we may be in an infinite loop
 		if n <= uint32(len(b)) {
 			return "", NewSyscallError("ComputerNameEx", err)

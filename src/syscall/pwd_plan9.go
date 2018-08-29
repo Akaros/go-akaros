@@ -29,15 +29,22 @@ func fixwdLocked() {
 	if !wdSet {
 		return
 	}
-	wd, err := getwd()
-	if err != nil {
-		return
-	}
+	// always call chdir when getwd returns an error
+	wd, _ := getwd()
 	if wd == wdStr {
 		return
 	}
 	if err := chdir(wdStr); err != nil {
 		return
+	}
+}
+
+func fixwd(paths ...string) {
+	for _, path := range paths {
+		if path != "" && path[0] != '/' && path[0] != '#' {
+			Fixwd()
+			return
+		}
 	}
 }
 
@@ -68,6 +75,7 @@ func Getwd() (wd string, err error) {
 }
 
 func Chdir(path string) error {
+	fixwd(path)
 	wdmu.Lock()
 	defer wdmu.Unlock()
 

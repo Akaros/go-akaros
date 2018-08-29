@@ -4,12 +4,13 @@
 
 // Package jpeg implements a JPEG image decoder and encoder.
 //
-// JPEG is defined in ITU-T T.81: http://www.w3.org/Graphics/JPEG/itu-t81.pdf.
+// JPEG is defined in ITU-T T.81: https://www.w3.org/Graphics/JPEG/itu-t81.pdf.
 package jpeg
 
 import (
 	"image"
 	"image/color"
+	"image/internal/imageutil"
 	"io"
 )
 
@@ -47,7 +48,7 @@ const (
 )
 
 const (
-	sof0Marker = 0xc0 // Start Of Frame (Baseline).
+	sof0Marker = 0xc0 // Start Of Frame (Baseline Sequential).
 	sof1Marker = 0xc1 // Start Of Frame (Extended Sequential).
 	sof2Marker = 0xc2 // Start Of Frame (Progressive).
 	dhtMarker  = 0xc4 // Define Huffman Table.
@@ -61,13 +62,13 @@ const (
 	comMarker  = 0xfe // COMment.
 	// "APPlication specific" markers aren't part of the JPEG spec per se,
 	// but in practice, their use is described at
-	// http://www.sno.phy.queensu.ca/~phil/exiftool/TagNames/JPEG.html
+	// https://www.sno.phy.queensu.ca/~phil/exiftool/TagNames/JPEG.html
 	app0Marker  = 0xe0
 	app14Marker = 0xee
 	app15Marker = 0xef
 )
 
-// See http://www.sno.phy.queensu.ca/~phil/exiftool/TagNames/JPEG.html#Adobe
+// See https://www.sno.phy.queensu.ca/~phil/exiftool/TagNames/JPEG.html#Adobe
 const (
 	adobeTransformUnknown = 0
 	adobeTransformYCbCr   = 1
@@ -88,7 +89,8 @@ var unzig = [blockSize]int{
 	53, 60, 61, 54, 47, 55, 62, 63,
 }
 
-// Reader is deprecated.
+// Deprecated: Reader is not used by the image/jpeg package and should
+// not be used by others. It is kept for compatibility.
 type Reader interface {
 	io.ByteReader
 	io.Reader
@@ -125,9 +127,17 @@ type decoder struct {
 	blackPix    []byte
 	blackStride int
 
-	ri                  int // Restart Interval.
-	nComp               int
-	progressive         bool
+	ri    int // Restart Interval.
+	nComp int
+
+	// As per section 4.5, there are four modes of operation (selected by the
+	// SOF? markers): sequential DCT, progressive DCT, lossless and
+	// hierarchical, although this implementation does not support the latter
+	// two non-DCT modes. Sequential DCT is further split into baseline and
+	// extended, as per section 4.11.
+	baseline    bool
+	progressive bool
+
 	jfif                bool
 	adobeTransformValid bool
 	adobeTransform      uint8
@@ -168,9 +178,6 @@ func (d *decoder) fill() error {
 // sometimes overshoot and read one or two too many bytes. Two-byte overshoot
 // can happen when expecting to read a 0xff 0x00 byte-stuffed byte.
 func (d *decoder) unreadByteStuffedByte() {
-	if d.bytes.nUnreadable == 0 {
-		panic("jpeg: unreadByteStuffedByte call cannot be fulfilled")
-	}
 	d.bytes.i -= d.bytes.nUnreadable
 	d.bytes.nUnreadable = 0
 	if d.bits.n >= 8 {
@@ -216,18 +223,19 @@ func (d *decoder) readByteStuffedByte() (x byte, err error) {
 		return 0xff, nil
 	}
 
+	d.bytes.nUnreadable = 0
+
 	x, err = d.readByte()
 	if err != nil {
 		return 0, err
 	}
+	d.bytes.nUnreadable = 1
 	if x != 0xff {
-		d.bytes.nUnreadable = 1
 		return x, nil
 	}
 
 	x, err = d.readByte()
 	if err != nil {
-		d.bytes.nUnreadable = 1
 		return 0, err
 	}
 	d.bytes.nUnreadable = 2
@@ -297,6 +305,9 @@ func (d *decoder) ignore(n int) error {
 
 // Specified in section B.2.2.
 func (d *decoder) processSOF(n int) error {
+	if d.nComp != 0 {
+		return FormatError("multiple SOF markers")
+	}
 	switch n {
 	case 6 + 3*1: // Grayscale image.
 		d.nComp = 1
@@ -594,6 +605,7 @@ func (d *decoder) decode(r io.Reader, configOnly bool) (image.Image, error) {
 
 		switch marker {
 		case sof0Marker, sof1Marker, sof2Marker:
+			d.baseline = marker == sof0Marker
 			d.progressive = marker == sof2Marker
 			err = d.processSOF(n)
 			if configOnly && d.jfif {
@@ -639,6 +651,12 @@ func (d *decoder) decode(r io.Reader, configOnly bool) (image.Image, error) {
 			return nil, err
 		}
 	}
+
+	if d.progressive {
+		if err := d.reconstructProgressiveImage(); err != nil {
+			return nil, err
+		}
+	}
 	if d.img1 != nil {
 		return d.img1, nil
 	}
@@ -667,7 +685,7 @@ func (d *decoder) applyBlack() (image.Image, error) {
 
 	// If the 4-component JPEG image isn't explicitly marked as "Unknown (RGB
 	// or CMYK)" as per
-	// http://www.sno.phy.queensu.ca/~phil/exiftool/TagNames/JPEG.html#Adobe
+	// https://www.sno.phy.queensu.ca/~phil/exiftool/TagNames/JPEG.html#Adobe
 	// we assume that it is YCbCrK. This matches libjpeg's jdapimin.c.
 	if d.adobeTransform != adobeTransformUnknown {
 		// Convert the YCbCr part of the YCbCrK to RGB, invert the RGB to get
@@ -676,7 +694,7 @@ func (d *decoder) applyBlack() (image.Image, error) {
 		// above, so in practice, only the fourth channel (black) is inverted.
 		bounds := d.img3.Bounds()
 		img := image.NewRGBA(bounds)
-		drawYCbCr(img, bounds, d.img3, bounds.Min)
+		imageutil.DrawYCbCr(img, bounds, d.img3, bounds.Min)
 		for iBase, y := 0, bounds.Min.Y; y < bounds.Max.Y; iBase, y = iBase+img.Stride, y+1 {
 			for i, x := iBase+3, bounds.Min.X; x < bounds.Max.X; i, x = i+4, x+1 {
 				img.Pix[i] = 255 - d.blackPix[(y-bounds.Min.Y)*d.blackStride+(x-bounds.Min.X)]
@@ -730,7 +748,7 @@ func (d *decoder) isRGB() bool {
 		return false
 	}
 	if d.adobeTransformValid && d.adobeTransform == adobeTransformUnknown {
-		// http://www.sno.phy.queensu.ca/~phil/exiftool/TagNames/JPEG.html#Adobe
+		// https://www.sno.phy.queensu.ca/~phil/exiftool/TagNames/JPEG.html#Adobe
 		// says that 0 means Unknown (and in practice RGB) and 1 means YCbCr.
 		return true
 	}
@@ -753,82 +771,6 @@ func (d *decoder) convertToRGB() (image.Image, error) {
 		}
 	}
 	return img, nil
-}
-
-// drawYCbCr is the non-exported drawYCbCr function copy/pasted from the
-// image/draw package. It is copy/pasted because it doesn't seem right for the
-// image/jpeg package to depend on image/draw.
-//
-// TODO(nigeltao): remove the copy/paste, possibly by moving this to be an
-// exported method on *image.YCbCr. We'd need to make sure we're totally happy
-// with the API (for the rest of Go 1 compatibility) though, and if we want to
-// have a more general purpose DrawToRGBA method for other image types.
-func drawYCbCr(dst *image.RGBA, r image.Rectangle, src *image.YCbCr, sp image.Point) (ok bool) {
-	// An image.YCbCr is always fully opaque, and so if the mask is implicitly nil
-	// (i.e. fully opaque) then the op is effectively always Src.
-	x0 := (r.Min.X - dst.Rect.Min.X) * 4
-	x1 := (r.Max.X - dst.Rect.Min.X) * 4
-	y0 := r.Min.Y - dst.Rect.Min.Y
-	y1 := r.Max.Y - dst.Rect.Min.Y
-	switch src.SubsampleRatio {
-	case image.YCbCrSubsampleRatio444:
-		for y, sy := y0, sp.Y; y != y1; y, sy = y+1, sy+1 {
-			dpix := dst.Pix[y*dst.Stride:]
-			yi := (sy-src.Rect.Min.Y)*src.YStride + (sp.X - src.Rect.Min.X)
-			ci := (sy-src.Rect.Min.Y)*src.CStride + (sp.X - src.Rect.Min.X)
-			for x := x0; x != x1; x, yi, ci = x+4, yi+1, ci+1 {
-				rr, gg, bb := color.YCbCrToRGB(src.Y[yi], src.Cb[ci], src.Cr[ci])
-				dpix[x+0] = rr
-				dpix[x+1] = gg
-				dpix[x+2] = bb
-				dpix[x+3] = 255
-			}
-		}
-	case image.YCbCrSubsampleRatio422:
-		for y, sy := y0, sp.Y; y != y1; y, sy = y+1, sy+1 {
-			dpix := dst.Pix[y*dst.Stride:]
-			yi := (sy-src.Rect.Min.Y)*src.YStride + (sp.X - src.Rect.Min.X)
-			ciBase := (sy-src.Rect.Min.Y)*src.CStride - src.Rect.Min.X/2
-			for x, sx := x0, sp.X; x != x1; x, sx, yi = x+4, sx+1, yi+1 {
-				ci := ciBase + sx/2
-				rr, gg, bb := color.YCbCrToRGB(src.Y[yi], src.Cb[ci], src.Cr[ci])
-				dpix[x+0] = rr
-				dpix[x+1] = gg
-				dpix[x+2] = bb
-				dpix[x+3] = 255
-			}
-		}
-	case image.YCbCrSubsampleRatio420:
-		for y, sy := y0, sp.Y; y != y1; y, sy = y+1, sy+1 {
-			dpix := dst.Pix[y*dst.Stride:]
-			yi := (sy-src.Rect.Min.Y)*src.YStride + (sp.X - src.Rect.Min.X)
-			ciBase := (sy/2-src.Rect.Min.Y/2)*src.CStride - src.Rect.Min.X/2
-			for x, sx := x0, sp.X; x != x1; x, sx, yi = x+4, sx+1, yi+1 {
-				ci := ciBase + sx/2
-				rr, gg, bb := color.YCbCrToRGB(src.Y[yi], src.Cb[ci], src.Cr[ci])
-				dpix[x+0] = rr
-				dpix[x+1] = gg
-				dpix[x+2] = bb
-				dpix[x+3] = 255
-			}
-		}
-	case image.YCbCrSubsampleRatio440:
-		for y, sy := y0, sp.Y; y != y1; y, sy = y+1, sy+1 {
-			dpix := dst.Pix[y*dst.Stride:]
-			yi := (sy-src.Rect.Min.Y)*src.YStride + (sp.X - src.Rect.Min.X)
-			ci := (sy/2-src.Rect.Min.Y/2)*src.CStride + (sp.X - src.Rect.Min.X)
-			for x := x0; x != x1; x, yi, ci = x+4, yi+1, ci+1 {
-				rr, gg, bb := color.YCbCrToRGB(src.Y[yi], src.Cb[ci], src.Cr[ci])
-				dpix[x+0] = rr
-				dpix[x+1] = gg
-				dpix[x+2] = bb
-				dpix[x+3] = 255
-			}
-		}
-	default:
-		return false
-	}
-	return true
 }
 
 // Decode reads a JPEG image from r and returns it as an image.Image.

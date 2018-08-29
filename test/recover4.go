@@ -1,7 +1,7 @@
 // +build linux darwin
 // run
 
-// Copyright 2015 The Go Authors.  All rights reserved.
+// Copyright 2015 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -52,14 +52,14 @@ func main() {
 		log.Fatalf("mmap: %v", err)
 	}
 
+	other := make([]byte, 16*size)
+
 	// Note: Cannot call syscall.Munmap, because Munmap checks
 	// that you are unmapping a whole region returned by Mmap.
 	// We are trying to unmap just a hole in the middle.
 	if _, _, err := syscall.Syscall(syscall.SYS_MUNMAP, uintptr(unsafe.Pointer(&data[8*size])), uintptr(4*size), 0); err != 0 {
 		log.Fatalf("munmap: %v", err)
 	}
-
-	other := make([]byte, 16*size)
 
 	// Check that memcopy returns the actual amount copied
 	// before the fault (8*size - 5, the offset we skip in the argument).
@@ -68,6 +68,6 @@ func main() {
 		log.Fatal("no error from memcopy across memory hole")
 	}
 	if n != 8*size-5 {
-		log.Fatal("memcopy returned %d, want %d", n, 8*size-5)
+		log.Fatalf("memcopy returned %d, want %d", n, 8*size-5)
 	}
 }

@@ -2,13 +2,17 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
+// Package arch defines architecture-specific information and support functions.
 package arch
 
 import (
 	"cmd/internal/obj"
 	"cmd/internal/obj/arm"
 	"cmd/internal/obj/arm64"
+	"cmd/internal/obj/mips"
 	"cmd/internal/obj/ppc64"
+	"cmd/internal/obj/s390x"
+	"cmd/internal/obj/wasm"
 	"cmd/internal/obj/x86"
 	"fmt"
 	"strings"
@@ -26,7 +30,7 @@ const (
 type Arch struct {
 	*obj.LinkArch
 	// Map of instruction names to enumeration.
-	Instructions map[string]int
+	Instructions map[string]obj.As
 	// Map of register names to enumeration.
 	Register map[string]int16
 	// Table of register prefix names. These are things like R for R(0) and SPR for SPR(268).
@@ -43,14 +47,6 @@ func nilRegisterNumber(name string, n int16) (int16, bool) {
 	return 0, false
 }
 
-var Pseudos = map[string]int{
-	"DATA":     obj.ADATA,
-	"FUNCDATA": obj.AFUNCDATA,
-	"GLOBL":    obj.AGLOBL,
-	"PCDATA":   obj.APCDATA,
-	"TEXT":     obj.ATEXT,
-}
-
 // Set configures the architecture specified by GOARCH and returns its representation.
 // It returns nil if GOARCH is not recognized.
 func Set(GOARCH string) *Arch {
@@ -65,6 +61,22 @@ func Set(GOARCH string) *Arch {
 		return archArm()
 	case "arm64":
 		return archArm64()
+	case "mips":
+		a := archMips()
+		a.LinkArch = &mips.Linkmips
+		return a
+	case "mipsle":
+		a := archMips()
+		a.LinkArch = &mips.Linkmipsle
+		return a
+	case "mips64":
+		a := archMips64()
+		a.LinkArch = &mips.Linkmips64
+		return a
+	case "mips64le":
+		a := archMips64()
+		a.LinkArch = &mips.Linkmips64le
+		return a
 	case "ppc64":
 		a := archPPC64()
 		a.LinkArch = &ppc64.Linkppc64
@@ -73,12 +85,22 @@ func Set(GOARCH string) *Arch {
 		a := archPPC64()
 		a.LinkArch = &ppc64.Linkppc64le
 		return a
+	case "s390x":
+		a := archS390x()
+		a.LinkArch = &s390x.Links390x
+		return a
+	case "wasm":
+		return archWasm()
 	}
 	return nil
 }
 
 func jumpX86(word string) bool {
-	return word[0] == 'J' || word == "CALL" || strings.HasPrefix(word, "LOOP")
+	return word[0] == 'J' || word == "CALL" || strings.HasPrefix(word, "LOOP") || word == "XBEGIN"
+}
+
+func jumpWasm(word string) bool {
+	return word == "JMP" || word == "CALL" || word == "Call" || word == "Br" || word == "BrIf"
 }
 
 func archX86(linkArch *obj.LinkArch) *Arch {
@@ -93,55 +115,69 @@ func archX86(linkArch *obj.LinkArch) *Arch {
 	register["PC"] = RPC
 	// Register prefix not used on this architecture.
 
-	instructions := make(map[string]int)
+	instructions := make(map[string]obj.As)
 	for i, s := range obj.Anames {
-		instructions[s] = i
+		instructions[s] = obj.As(i)
 	}
 	for i, s := range x86.Anames {
-		if i >= obj.A_ARCHSPECIFIC {
-			instructions[s] = i + obj.ABaseAMD64
+		if obj.As(i) >= obj.A_ARCHSPECIFIC {
+			instructions[s] = obj.As(i) + obj.ABaseAMD64
 		}
 	}
 	// Annoying aliases.
-	instructions["JA"] = x86.AJHI
-	instructions["JAE"] = x86.AJCC
-	instructions["JB"] = x86.AJCS
-	instructions["JBE"] = x86.AJLS
-	instructions["JC"] = x86.AJCS
-	instructions["JE"] = x86.AJEQ
-	instructions["JG"] = x86.AJGT
-	instructions["JHS"] = x86.AJCC
-	instructions["JL"] = x86.AJLT
-	instructions["JLO"] = x86.AJCS
-	instructions["JNA"] = x86.AJLS
-	instructions["JNAE"] = x86.AJCS
-	instructions["JNB"] = x86.AJCC
-	instructions["JNBE"] = x86.AJHI
-	instructions["JNC"] = x86.AJCC
-	instructions["JNG"] = x86.AJLE
-	instructions["JNGE"] = x86.AJLT
-	instructions["JNL"] = x86.AJGE
-	instructions["JNLE"] = x86.AJGT
-	instructions["JNO"] = x86.AJOC
-	instructions["JNP"] = x86.AJPC
-	instructions["JNS"] = x86.AJPL
-	instructions["JNZ"] = x86.AJNE
-	instructions["JO"] = x86.AJOS
-	instructions["JP"] = x86.AJPS
-	instructions["JPE"] = x86.AJPS
-	instructions["JPO"] = x86.AJPC
-	instructions["JS"] = x86.AJMI
-	instructions["JZ"] = x86.AJEQ
+	instructions["JA"] = x86.AJHI   /* alternate */
+	instructions["JAE"] = x86.AJCC  /* alternate */
+	instructions["JB"] = x86.AJCS   /* alternate */
+	instructions["JBE"] = x86.AJLS  /* alternate */
+	instructions["JC"] = x86.AJCS   /* alternate */
+	instructions["JCC"] = x86.AJCC  /* carry clear (CF = 0) */
+	instructions["JCS"] = x86.AJCS  /* carry set (CF = 1) */
+	instructions["JE"] = x86.AJEQ   /* alternate */
+	instructions["JEQ"] = x86.AJEQ  /* equal (ZF = 1) */
+	instructions["JG"] = x86.AJGT   /* alternate */
+	instructions["JGE"] = x86.AJGE  /* greater than or equal (signed) (SF = OF) */
+	instructions["JGT"] = x86.AJGT  /* greater than (signed) (ZF = 0 && SF = OF) */
+	instructions["JHI"] = x86.AJHI  /* higher (unsigned) (CF = 0 && ZF = 0) */
+	instructions["JHS"] = x86.AJCC  /* alternate */
+	instructions["JL"] = x86.AJLT   /* alternate */
+	instructions["JLE"] = x86.AJLE  /* less than or equal (signed) (ZF = 1 || SF != OF) */
+	instructions["JLO"] = x86.AJCS  /* alternate */
+	instructions["JLS"] = x86.AJLS  /* lower or same (unsigned) (CF = 1 || ZF = 1) */
+	instructions["JLT"] = x86.AJLT  /* less than (signed) (SF != OF) */
+	instructions["JMI"] = x86.AJMI  /* negative (minus) (SF = 1) */
+	instructions["JNA"] = x86.AJLS  /* alternate */
+	instructions["JNAE"] = x86.AJCS /* alternate */
+	instructions["JNB"] = x86.AJCC  /* alternate */
+	instructions["JNBE"] = x86.AJHI /* alternate */
+	instructions["JNC"] = x86.AJCC  /* alternate */
+	instructions["JNE"] = x86.AJNE  /* not equal (ZF = 0) */
+	instructions["JNG"] = x86.AJLE  /* alternate */
+	instructions["JNGE"] = x86.AJLT /* alternate */
+	instructions["JNL"] = x86.AJGE  /* alternate */
+	instructions["JNLE"] = x86.AJGT /* alternate */
+	instructions["JNO"] = x86.AJOC  /* alternate */
+	instructions["JNP"] = x86.AJPC  /* alternate */
+	instructions["JNS"] = x86.AJPL  /* alternate */
+	instructions["JNZ"] = x86.AJNE  /* alternate */
+	instructions["JO"] = x86.AJOS   /* alternate */
+	instructions["JOC"] = x86.AJOC  /* overflow clear (OF = 0) */
+	instructions["JOS"] = x86.AJOS  /* overflow set (OF = 1) */
+	instructions["JP"] = x86.AJPS   /* alternate */
+	instructions["JPC"] = x86.AJPC  /* parity clear (PF = 0) */
+	instructions["JPE"] = x86.AJPS  /* alternate */
+	instructions["JPL"] = x86.AJPL  /* non-negative (plus) (SF = 0) */
+	instructions["JPO"] = x86.AJPC  /* alternate */
+	instructions["JPS"] = x86.AJPS  /* parity set (PF = 1) */
+	instructions["JS"] = x86.AJMI   /* alternate */
+	instructions["JZ"] = x86.AJEQ   /* alternate */
 	instructions["MASKMOVDQU"] = x86.AMASKMOVOU
 	instructions["MOVD"] = x86.AMOVQ
 	instructions["MOVDQ2Q"] = x86.AMOVQ
 	instructions["MOVNTDQ"] = x86.AMOVNTO
 	instructions["MOVOA"] = x86.AMOVO
-	instructions["MOVOA"] = x86.AMOVO
-	instructions["PF2ID"] = x86.APF2IL
-	instructions["PI2FD"] = x86.API2FL
 	instructions["PSLLDQ"] = x86.APSLLO
 	instructions["PSRLDQ"] = x86.APSRLO
+	instructions["PADDD"] = x86.APADDL
 
 	return &Arch{
 		LinkArch:       linkArch,
@@ -177,13 +213,23 @@ func archArm() *Arch {
 		"R": true,
 	}
 
-	instructions := make(map[string]int)
+	// special operands for DMB/DSB instructions
+	register["MB_SY"] = arm.REG_MB_SY
+	register["MB_ST"] = arm.REG_MB_ST
+	register["MB_ISH"] = arm.REG_MB_ISH
+	register["MB_ISHST"] = arm.REG_MB_ISHST
+	register["MB_NSH"] = arm.REG_MB_NSH
+	register["MB_NSHST"] = arm.REG_MB_NSHST
+	register["MB_OSH"] = arm.REG_MB_OSH
+	register["MB_OSHST"] = arm.REG_MB_OSHST
+
+	instructions := make(map[string]obj.As)
 	for i, s := range obj.Anames {
-		instructions[s] = i
+		instructions[s] = obj.As(i)
 	}
 	for i, s := range arm.Anames {
-		if i >= obj.A_ARCHSPECIFIC {
-			instructions[s] = i + obj.ABaseARM
+		if obj.As(i) >= obj.A_ARCHSPECIFIC {
+			instructions[s] = obj.As(i) + obj.ABaseARM
 		}
 	}
 	// Annoying aliases.
@@ -208,15 +254,15 @@ func archArm64() *Arch {
 	register := make(map[string]int16)
 	// Create maps for easy lookup of instruction names etc.
 	// Note that there is no list of names as there is for 386 and amd64.
-	register[arm64.Rconv(arm64.REGSP)] = int16(arm64.REGSP)
+	register[obj.Rconv(arm64.REGSP)] = int16(arm64.REGSP)
 	for i := arm64.REG_R0; i <= arm64.REG_R31; i++ {
-		register[arm64.Rconv(i)] = int16(i)
+		register[obj.Rconv(i)] = int16(i)
 	}
 	for i := arm64.REG_F0; i <= arm64.REG_F31; i++ {
-		register[arm64.Rconv(i)] = int16(i)
+		register[obj.Rconv(i)] = int16(i)
 	}
 	for i := arm64.REG_V0; i <= arm64.REG_V31; i++ {
-		register[arm64.Rconv(i)] = int16(i)
+		register[obj.Rconv(i)] = int16(i)
 	}
 	register["LR"] = arm64.REGLINK
 	register["DAIF"] = arm64.REG_DAIF
@@ -232,11 +278,33 @@ func archArm64() *Arch {
 	register["SPSel"] = arm64.REG_SPSel
 	register["DAIFSet"] = arm64.REG_DAIFSet
 	register["DAIFClr"] = arm64.REG_DAIFClr
+	register["DCZID_EL0"] = arm64.REG_DCZID_EL0
+	register["PLDL1KEEP"] = arm64.REG_PLDL1KEEP
+	register["PLDL1STRM"] = arm64.REG_PLDL1STRM
+	register["PLDL2KEEP"] = arm64.REG_PLDL2KEEP
+	register["PLDL2STRM"] = arm64.REG_PLDL2STRM
+	register["PLDL3KEEP"] = arm64.REG_PLDL3KEEP
+	register["PLDL3STRM"] = arm64.REG_PLDL3STRM
+	register["PLIL1KEEP"] = arm64.REG_PLIL1KEEP
+	register["PLIL1STRM"] = arm64.REG_PLIL1STRM
+	register["PLIL2KEEP"] = arm64.REG_PLIL2KEEP
+	register["PLIL2STRM"] = arm64.REG_PLIL2STRM
+	register["PLIL3KEEP"] = arm64.REG_PLIL3KEEP
+	register["PLIL3STRM"] = arm64.REG_PLIL3STRM
+	register["PSTL1KEEP"] = arm64.REG_PSTL1KEEP
+	register["PSTL1STRM"] = arm64.REG_PSTL1STRM
+	register["PSTL2KEEP"] = arm64.REG_PSTL2KEEP
+	register["PSTL2STRM"] = arm64.REG_PSTL2STRM
+	register["PSTL3KEEP"] = arm64.REG_PSTL3KEEP
+	register["PSTL3STRM"] = arm64.REG_PSTL3STRM
+
 	// Conditional operators, like EQ, NE, etc.
 	register["EQ"] = arm64.COND_EQ
 	register["NE"] = arm64.COND_NE
 	register["HS"] = arm64.COND_HS
+	register["CS"] = arm64.COND_HS
 	register["LO"] = arm64.COND_LO
+	register["CC"] = arm64.COND_LO
 	register["MI"] = arm64.COND_MI
 	register["PL"] = arm64.COND_PL
 	register["VS"] = arm64.COND_VS
@@ -263,13 +331,13 @@ func archArm64() *Arch {
 		"V": true,
 	}
 
-	instructions := make(map[string]int)
+	instructions := make(map[string]obj.As)
 	for i, s := range obj.Anames {
-		instructions[s] = i
+		instructions[s] = obj.As(i)
 	}
 	for i, s := range arm64.Anames {
-		if i >= obj.A_ARCHSPECIFIC {
-			instructions[s] = i + obj.ABaseARM64
+		if obj.As(i) >= obj.A_ARCHSPECIFIC {
+			instructions[s] = obj.As(i) + obj.ABaseARM64
 		}
 	}
 	// Annoying aliases.
@@ -295,6 +363,12 @@ func archPPC64() *Arch {
 		register[obj.Rconv(i)] = int16(i)
 	}
 	for i := ppc64.REG_F0; i <= ppc64.REG_F31; i++ {
+		register[obj.Rconv(i)] = int16(i)
+	}
+	for i := ppc64.REG_V0; i <= ppc64.REG_V31; i++ {
+		register[obj.Rconv(i)] = int16(i)
+	}
+	for i := ppc64.REG_VS0; i <= ppc64.REG_VS63; i++ {
 		register[obj.Rconv(i)] = int16(i)
 	}
 	for i := ppc64.REG_CR0; i <= ppc64.REG_CR7; i++ {
@@ -323,19 +397,18 @@ func archPPC64() *Arch {
 		"SPR": true,
 	}
 
-	instructions := make(map[string]int)
+	instructions := make(map[string]obj.As)
 	for i, s := range obj.Anames {
-		instructions[s] = i
+		instructions[s] = obj.As(i)
 	}
 	for i, s := range ppc64.Anames {
-		if i >= obj.A_ARCHSPECIFIC {
-			instructions[s] = i + obj.ABasePPC64
+		if obj.As(i) >= obj.A_ARCHSPECIFIC {
+			instructions[s] = obj.As(i) + obj.ABasePPC64
 		}
 	}
 	// Annoying aliases.
 	instructions["BR"] = ppc64.ABR
 	instructions["BL"] = ppc64.ABL
-	instructions["RETURN"] = ppc64.ARETURN
 
 	return &Arch{
 		LinkArch:       &ppc64.Linkppc64,
@@ -344,5 +417,192 @@ func archPPC64() *Arch {
 		RegisterPrefix: registerPrefix,
 		RegisterNumber: ppc64RegisterNumber,
 		IsJump:         jumpPPC64,
+	}
+}
+
+func archMips() *Arch {
+	register := make(map[string]int16)
+	// Create maps for easy lookup of instruction names etc.
+	// Note that there is no list of names as there is for x86.
+	for i := mips.REG_R0; i <= mips.REG_R31; i++ {
+		register[obj.Rconv(i)] = int16(i)
+	}
+
+	for i := mips.REG_F0; i <= mips.REG_F31; i++ {
+		register[obj.Rconv(i)] = int16(i)
+	}
+	for i := mips.REG_M0; i <= mips.REG_M31; i++ {
+		register[obj.Rconv(i)] = int16(i)
+	}
+	for i := mips.REG_FCR0; i <= mips.REG_FCR31; i++ {
+		register[obj.Rconv(i)] = int16(i)
+	}
+	register["HI"] = mips.REG_HI
+	register["LO"] = mips.REG_LO
+	// Pseudo-registers.
+	register["SB"] = RSB
+	register["FP"] = RFP
+	register["PC"] = RPC
+	// Avoid unintentionally clobbering g using R30.
+	delete(register, "R30")
+	register["g"] = mips.REG_R30
+
+	registerPrefix := map[string]bool{
+		"F":   true,
+		"FCR": true,
+		"M":   true,
+		"R":   true,
+	}
+
+	instructions := make(map[string]obj.As)
+	for i, s := range obj.Anames {
+		instructions[s] = obj.As(i)
+	}
+	for i, s := range mips.Anames {
+		if obj.As(i) >= obj.A_ARCHSPECIFIC {
+			instructions[s] = obj.As(i) + obj.ABaseMIPS
+		}
+	}
+	// Annoying alias.
+	instructions["JAL"] = mips.AJAL
+
+	return &Arch{
+		LinkArch:       &mips.Linkmipsle,
+		Instructions:   instructions,
+		Register:       register,
+		RegisterPrefix: registerPrefix,
+		RegisterNumber: mipsRegisterNumber,
+		IsJump:         jumpMIPS,
+	}
+}
+
+func archMips64() *Arch {
+	register := make(map[string]int16)
+	// Create maps for easy lookup of instruction names etc.
+	// Note that there is no list of names as there is for x86.
+	for i := mips.REG_R0; i <= mips.REG_R31; i++ {
+		register[obj.Rconv(i)] = int16(i)
+	}
+	for i := mips.REG_F0; i <= mips.REG_F31; i++ {
+		register[obj.Rconv(i)] = int16(i)
+	}
+	for i := mips.REG_M0; i <= mips.REG_M31; i++ {
+		register[obj.Rconv(i)] = int16(i)
+	}
+	for i := mips.REG_FCR0; i <= mips.REG_FCR31; i++ {
+		register[obj.Rconv(i)] = int16(i)
+	}
+	register["HI"] = mips.REG_HI
+	register["LO"] = mips.REG_LO
+	// Pseudo-registers.
+	register["SB"] = RSB
+	register["FP"] = RFP
+	register["PC"] = RPC
+	// Avoid unintentionally clobbering g using R30.
+	delete(register, "R30")
+	register["g"] = mips.REG_R30
+	// Avoid unintentionally clobbering RSB using R28.
+	delete(register, "R28")
+	register["RSB"] = mips.REG_R28
+	registerPrefix := map[string]bool{
+		"F":   true,
+		"FCR": true,
+		"M":   true,
+		"R":   true,
+	}
+
+	instructions := make(map[string]obj.As)
+	for i, s := range obj.Anames {
+		instructions[s] = obj.As(i)
+	}
+	for i, s := range mips.Anames {
+		if obj.As(i) >= obj.A_ARCHSPECIFIC {
+			instructions[s] = obj.As(i) + obj.ABaseMIPS
+		}
+	}
+	// Annoying alias.
+	instructions["JAL"] = mips.AJAL
+
+	return &Arch{
+		LinkArch:       &mips.Linkmips64,
+		Instructions:   instructions,
+		Register:       register,
+		RegisterPrefix: registerPrefix,
+		RegisterNumber: mipsRegisterNumber,
+		IsJump:         jumpMIPS,
+	}
+}
+
+func archS390x() *Arch {
+	register := make(map[string]int16)
+	// Create maps for easy lookup of instruction names etc.
+	// Note that there is no list of names as there is for x86.
+	for i := s390x.REG_R0; i <= s390x.REG_R15; i++ {
+		register[obj.Rconv(i)] = int16(i)
+	}
+	for i := s390x.REG_F0; i <= s390x.REG_F15; i++ {
+		register[obj.Rconv(i)] = int16(i)
+	}
+	for i := s390x.REG_V0; i <= s390x.REG_V31; i++ {
+		register[obj.Rconv(i)] = int16(i)
+	}
+	for i := s390x.REG_AR0; i <= s390x.REG_AR15; i++ {
+		register[obj.Rconv(i)] = int16(i)
+	}
+	register["LR"] = s390x.REG_LR
+	// Pseudo-registers.
+	register["SB"] = RSB
+	register["FP"] = RFP
+	register["PC"] = RPC
+	// Avoid unintentionally clobbering g using R13.
+	delete(register, "R13")
+	register["g"] = s390x.REG_R13
+	registerPrefix := map[string]bool{
+		"AR": true,
+		"F":  true,
+		"R":  true,
+	}
+
+	instructions := make(map[string]obj.As)
+	for i, s := range obj.Anames {
+		instructions[s] = obj.As(i)
+	}
+	for i, s := range s390x.Anames {
+		if obj.As(i) >= obj.A_ARCHSPECIFIC {
+			instructions[s] = obj.As(i) + obj.ABaseS390X
+		}
+	}
+	// Annoying aliases.
+	instructions["BR"] = s390x.ABR
+	instructions["BL"] = s390x.ABL
+
+	return &Arch{
+		LinkArch:       &s390x.Links390x,
+		Instructions:   instructions,
+		Register:       register,
+		RegisterPrefix: registerPrefix,
+		RegisterNumber: s390xRegisterNumber,
+		IsJump:         jumpS390x,
+	}
+}
+
+func archWasm() *Arch {
+	instructions := make(map[string]obj.As)
+	for i, s := range obj.Anames {
+		instructions[s] = obj.As(i)
+	}
+	for i, s := range wasm.Anames {
+		if obj.As(i) >= obj.A_ARCHSPECIFIC {
+			instructions[s] = obj.As(i) + obj.ABaseWasm
+		}
+	}
+
+	return &Arch{
+		LinkArch:       &wasm.Linkwasm,
+		Instructions:   instructions,
+		Register:       wasm.Register,
+		RegisterPrefix: nil,
+		RegisterNumber: nilRegisterNumber,
+		IsJump:         jumpWasm,
 	}
 }

@@ -23,7 +23,7 @@ var float32info = floatInfo{23, 8, -127}
 var float64info = floatInfo{52, 11, -1023}
 
 // FormatFloat converts the floating-point number f to a string,
-// according to the format fmt and precision prec.  It rounds the
+// according to the format fmt and precision prec. It rounds the
 // result assuming that the original was obtained from a floating-point
 // value of bitSize bits (32 for float32, 64 for float64).
 //
@@ -35,10 +35,11 @@ var float64info = floatInfo{52, 11, -1023}
 // 'g' ('e' for large exponents, 'f' otherwise), or
 // 'G' ('E' for large exponents, 'f' otherwise).
 //
-// The precision prec controls the number of digits
-// (excluding the exponent) printed by the 'e', 'E', 'f', 'g', and 'G' formats.
+// The precision prec controls the number of digits (excluding the exponent)
+// printed by the 'e', 'E', 'f', 'g', and 'G' formats.
 // For 'e', 'E', and 'f' it is the number of digits after the decimal point.
-// For 'g' and 'G' it is the total number of digits.
+// For 'g' and 'G' it is the maximum number of significant digits (trailing
+// zeros are removed).
 // The special precision -1 uses the smallest number of digits
 // necessary such that ParseFloat will return f exactly.
 func FormatFloat(f float64, fmt byte, prec, bitSize int) string {
@@ -223,9 +224,8 @@ func formatDigits(dst []byte, shortest bool, neg bool, digs decimalSlice, prec i
 	return append(dst, '%', fmt)
 }
 
-// Round d (= mant * 2^exp) to the shortest number of digits
-// that will let the original floating point value be precisely
-// reconstructed.  Size is original floating point size (64 or 32).
+// roundShortest rounds d (= mant * 2^exp) to the shortest number of digits
+// that will let the original floating point value be precisely reconstructed.
 func roundShortest(d *decimal, mant uint64, exp int, flt *floatInfo) {
 	// If mantissa is zero, the number is zero; stop now.
 	if mant == 0 {
@@ -287,25 +287,23 @@ func roundShortest(d *decimal, mant uint64, exp int, flt *floatInfo) {
 	// Now we can figure out the minimum number of digits required.
 	// Walk along until d has distinguished itself from upper and lower.
 	for i := 0; i < d.nd; i++ {
-		var l, m, u byte // lower, middle, upper digits
+		l := byte('0') // lower digit
 		if i < lower.nd {
 			l = lower.d[i]
-		} else {
-			l = '0'
 		}
-		m = d.d[i]
+		m := d.d[i]    // middle digit
+		u := byte('0') // upper digit
 		if i < upper.nd {
 			u = upper.d[i]
-		} else {
-			u = '0'
 		}
 
 		// Okay to round down (truncate) if lower has a different digit
-		// or if lower is inclusive and is exactly the result of rounding down.
-		okdown := l != m || (inclusive && l == m && i+1 == lower.nd)
+		// or if lower is inclusive and is exactly the result of rounding
+		// down (i.e., and we have reached the final digit of lower).
+		okdown := l != m || inclusive && i+1 == lower.nd
 
-		// Okay to round up if upper has a different digit and
-		// either upper is inclusive or upper is bigger than the result of rounding up.
+		// Okay to round up if upper has a different digit and either upper
+		// is inclusive or upper is bigger than the result of rounding up.
 		okup := m != u && (inclusive || m+1 < u || i+1 < upper.nd)
 
 		// If it's okay to do either, then round to the nearest one.

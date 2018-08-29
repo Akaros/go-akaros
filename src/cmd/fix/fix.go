@@ -1,4 +1,4 @@
-// Copyright 2011 The Go Authors.  All rights reserved.
+// Copyright 2011 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
@@ -17,10 +17,11 @@ import (
 )
 
 type fix struct {
-	name string
-	date string // date that fix was introduced, in YYYY-MM-DD format
-	f    func(*ast.File) bool
-	desc string
+	name     string
+	date     string // date that fix was introduced, in YYYY-MM-DD format
+	f        func(*ast.File) bool
+	desc     string
+	disabled bool // whether this fix should be disabled by default
 }
 
 // main runs sort.Sort(byName(fixes)) before printing list of fixes.

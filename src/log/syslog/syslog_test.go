@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build !windows,!nacl,!plan9
+// +build !windows,!nacl,!plan9,!js
 
 package syslog
 
@@ -46,6 +46,22 @@ func runPktSyslog(c net.PacketConn, done chan<- string) {
 }
 
 var crashy = false
+
+func testableNetwork(network string) bool {
+	switch network {
+	case "unix", "unixgram":
+		switch runtime.GOOS {
+		case "darwin":
+			switch runtime.GOARCH {
+			case "arm", "arm64":
+				return false
+			}
+		case "android":
+			return false
+		}
+	}
+	return true
+}
 
 func runStreamSyslog(l net.Listener, done chan<- string, wg *sync.WaitGroup) {
 	for {
@@ -118,11 +134,13 @@ func startServer(n, la string, done chan<- string) (addr string, sock io.Closer,
 }
 
 func TestWithSimulated(t *testing.T) {
+	t.Parallel()
 	msg := "Test 123"
-	transport := []string{"unix", "unixgram", "udp", "tcp"}
-
-	if runtime.GOOS == "darwin" && runtime.GOARCH == "arm" {
-		transport = []string{"udp", "tcp"}
+	var transport []string
+	for _, n := range []string{"unix", "unixgram", "udp", "tcp"} {
+		if testableNetwork(n) {
+			transport = append(transport, n)
+		}
 	}
 
 	for _, tr := range transport {
@@ -147,11 +165,11 @@ func TestWithSimulated(t *testing.T) {
 }
 
 func TestFlap(t *testing.T) {
-	if runtime.GOOS == "darwin" && runtime.GOARCH == "arm" {
-		t.Skipf("skipping on %s/%s", runtime.GOOS, runtime.GOARCH)
+	net := "unix"
+	if !testableNetwork(net) {
+		t.Skipf("skipping on %s/%s; 'unix' is not supported", runtime.GOOS, runtime.GOARCH)
 	}
 
-	net := "unix"
 	done := make(chan string)
 	addr, sock, srvWG := startServer(net, "", done)
 	defer srvWG.Wait()
@@ -196,6 +214,9 @@ func TestNew(t *testing.T) {
 
 	s, err := New(LOG_INFO|LOG_USER, "the_tag")
 	if err != nil {
+		if err.Error() == "Unix syslog delivery error" {
+			t.Skip("skipping: syslogd not running")
+		}
 		t.Fatalf("New() failed: %s", err)
 	}
 	// Don't send any messages.
@@ -208,6 +229,9 @@ func TestNewLogger(t *testing.T) {
 	}
 	f, err := NewLogger(LOG_USER|LOG_INFO, 0)
 	if f == nil {
+		if err.Error() == "Unix syslog delivery error" {
+			t.Skip("skipping: syslogd not running")
+		}
 		t.Error(err)
 	}
 }
@@ -226,6 +250,9 @@ func TestDial(t *testing.T) {
 	}
 	l, err := Dial("", "", LOG_USER|LOG_ERR, "syslog_test")
 	if err != nil {
+		if err.Error() == "Unix syslog delivery error" {
+			t.Skip("skipping: syslogd not running")
+		}
 		t.Fatalf("Dial() failed: %s", err)
 	}
 	l.Close()
@@ -245,6 +272,7 @@ func check(t *testing.T, in, out string) {
 }
 
 func TestWrite(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		pri Priority
 		pre string
@@ -315,8 +343,11 @@ func TestConcurrentReconnect(t *testing.T) {
 	const N = 10
 	const M = 100
 	net := "unix"
-	if runtime.GOOS == "darwin" && runtime.GOARCH == "arm" {
+	if !testableNetwork(net) {
 		net = "tcp"
+		if !testableNetwork(net) {
+			t.Skipf("skipping on %s/%s; neither 'unix' or 'tcp' is supported", runtime.GOOS, runtime.GOARCH)
+		}
 	}
 	done := make(chan string, N*M)
 	addr, sock, srvWG := startServer(net, "", done)
@@ -347,7 +378,8 @@ func TestConcurrentReconnect(t *testing.T) {
 			defer wg.Done()
 			w, err := Dial(net, addr, LOG_USER|LOG_ERR, "tag")
 			if err != nil {
-				t.Fatalf("syslog.Dial() failed: %v", err)
+				t.Errorf("syslog.Dial() failed: %v", err)
+				return
 			}
 			defer w.Close()
 			for i := 0; i < M; i++ {

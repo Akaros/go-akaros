@@ -12,7 +12,8 @@ const _DWORD_MAX = 0xffffffff
 
 const _INVALID_HANDLE_VALUE = ^uintptr(0)
 
-// net_op must be the same as beginning of net.operation. Keep these in sync.
+// net_op must be the same as beginning of internal/poll.operation.
+// Keep these in sync.
 type net_op struct {
 	// used by windows
 	o overlapped
@@ -33,16 +34,20 @@ type overlappedEntry struct {
 var iocphandle uintptr = _INVALID_HANDLE_VALUE // completion port io handle
 
 func netpollinit() {
-	iocphandle = uintptr(stdcall4(_CreateIoCompletionPort, _INVALID_HANDLE_VALUE, 0, 0, _DWORD_MAX))
+	iocphandle = stdcall4(_CreateIoCompletionPort, _INVALID_HANDLE_VALUE, 0, 0, _DWORD_MAX)
 	if iocphandle == 0 {
-		println("netpoll: failed to create iocp handle (errno=", getlasterror(), ")")
-		throw("netpoll: failed to create iocp handle")
+		println("runtime: CreateIoCompletionPort failed (errno=", getlasterror(), ")")
+		throw("runtime: netpollinit failed")
 	}
+}
+
+func netpolldescriptor() uintptr {
+	return iocphandle
 }
 
 func netpollopen(fd uintptr, pd *pollDesc) int32 {
 	if stdcall4(_CreateIoCompletionPort, fd, iocphandle, 0, 0) == 0 {
-		return -int32(getlasterror())
+		return int32(getlasterror())
 	}
 	return 0
 }
@@ -53,24 +58,23 @@ func netpollclose(fd uintptr) int32 {
 }
 
 func netpollarm(pd *pollDesc, mode int) {
-	throw("unused")
+	throw("runtime: unused")
 }
 
 // Polls for completed network IO.
 // Returns list of goroutines that become runnable.
-func netpoll(block bool) *g {
+func netpoll(block bool) gList {
 	var entries [64]overlappedEntry
 	var wait, qty, key, flags, n, i uint32
 	var errno int32
 	var op *net_op
-	var gp *g
+	var toRun gList
 
 	mp := getg().m
 
 	if iocphandle == _INVALID_HANDLE_VALUE {
-		return nil
+		return gList{}
 	}
-	gp = nil
 	wait = 0
 	if block {
 		wait = _INFINITE
@@ -88,10 +92,10 @@ retry:
 			mp.blocked = false
 			errno = int32(getlasterror())
 			if !block && errno == _WAIT_TIMEOUT {
-				return nil
+				return gList{}
 			}
-			println("netpoll: GetQueuedCompletionStatusEx failed (errno=", errno, ")")
-			throw("netpoll: GetQueuedCompletionStatusEx failed")
+			println("runtime: GetQueuedCompletionStatusEx failed (errno=", errno, ")")
+			throw("runtime: netpoll failed")
 		}
 		mp.blocked = false
 		for i = 0; i < n; i++ {
@@ -101,7 +105,7 @@ retry:
 			if stdcall5(_WSAGetOverlappedResult, op.pd.fd, uintptr(unsafe.Pointer(op)), uintptr(unsafe.Pointer(&qty)), 0, uintptr(unsafe.Pointer(&flags))) == 0 {
 				errno = int32(getlasterror())
 			}
-			handlecompletion(&gp, op, errno, qty)
+			handlecompletion(&toRun, op, errno, qty)
 		}
 	} else {
 		op = nil
@@ -114,33 +118,34 @@ retry:
 			mp.blocked = false
 			errno = int32(getlasterror())
 			if !block && errno == _WAIT_TIMEOUT {
-				return nil
+				return gList{}
 			}
 			if op == nil {
-				println("netpoll: GetQueuedCompletionStatus failed (errno=", errno, ")")
-				throw("netpoll: GetQueuedCompletionStatus failed")
+				println("runtime: GetQueuedCompletionStatus failed (errno=", errno, ")")
+				throw("runtime: netpoll failed")
 			}
 			// dequeued failed IO packet, so report that
 		}
 		mp.blocked = false
-		handlecompletion(&gp, op, errno, qty)
+		handlecompletion(&toRun, op, errno, qty)
 	}
-	if block && gp == nil {
+	if block && toRun.empty() {
 		goto retry
 	}
-	return gp
+	return toRun
 }
 
-func handlecompletion(gpp **g, op *net_op, errno int32, qty uint32) {
+func handlecompletion(toRun *gList, op *net_op, errno int32, qty uint32) {
 	if op == nil {
-		throw("netpoll: GetQueuedCompletionStatus returned op == nil")
+		println("runtime: GetQueuedCompletionStatus returned op == nil")
+		throw("runtime: netpoll failed")
 	}
 	mode := op.mode
 	if mode != 'r' && mode != 'w' {
-		println("netpoll: GetQueuedCompletionStatus returned invalid mode=", mode)
-		throw("netpoll: GetQueuedCompletionStatus returned invalid mode")
+		println("runtime: GetQueuedCompletionStatus returned invalid mode=", mode)
+		throw("runtime: netpoll failed")
 	}
 	op.errno = errno
 	op.qty = qty
-	netpollready((**g)(noescape(unsafe.Pointer(gpp))), op.pd, mode)
+	netpollready(toRun, op.pd, mode)
 }
