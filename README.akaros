@@ -1,0 +1,330 @@
+Go on Akaros
+Brian Wheatman
+2018-08-31
+
+#################################################
+Getting started with Go on Akaros
+#################################################
+This guide assumes you have set up Akaros following the directions here
+https://github.com/brho/akaros/blob/master/GETTING_STARTED.md
+as well as having ssh working by using https://github.com/akaros/dropbear-akaros.
+Roughly you should be able to start your instance and ssh into by using “ssh <akaros_server>”.
+
+
+The default server is currently qemu, but if you want to use a different server then set the value of AKAROS_SERVER to the name of the server.
+
+First clone the go-akaros repo and make a directory outside of it for your Go workspace.
+You will need a variable for each of these locations, mine are as followed.
+
+export AKAROS_GOROOT="$HOME/go-akaros1.4/go-akaros/"
+export AKAROS_GOPATH="$HOME/go-akaros1.4/go-workspace/"
+
+You will then need to build the Go source for Akaros.
+
+cd to $AKAROS_GOROOT/src and run “./akaros.bash make”
+
+
+Start your ufs server with
+ufs -root="$AKAROS_GOROOT" -addr="127.0.0.1:1025" &
+
+On the Akaros side you will need to run ./mountroot to set up the ufs server on the Akaros side.
+
+Then when you want to run a command with Akaros's version of Go just use
+"GOOS=akaros GOARCH=amd64 GOROOT=$AKAROS_GOROOT GOPATH=$AKAROS_GOPATH PATH=$AKAROS_GOROOT/bin:$AKAROS_GOROOT/misc/akaros/bin:$AKAROS_GOPATH/bin:$PATH CGO_ENABLED=1 $AKAROS_GOROOT/bin/go"
+
+Personally I set this up to an alias as
+alias akaros_go="GOOS=akaros GOARCH=amd64 GOROOT=$AKAROS_GOROOT GOPATH=$AKAROS_GOPATH PATH=$AKAROS_GOROOT/bin:$AKAROS_GOROOT/misc/akaros/bin:$AKAROS_GOPATH/bin:$PATH CGO_ENABLED=1 $AKAROS_GOROOT/bin/go"
+
+But you could also map it to the go command itself.
+
+This command is designed to be self contained so that it does not mess with your environment at all.
+
+#################################################
+The differences between Akaros and other OS ports
+#################################################
+
+Most of the major difference in the Akaros port of Go vs that of other OS’s is that Akaros does much more in user space.
+In many ways Akaros’s second level scheduler (2LS) is like part of the OS of other operating systems.
+Because these operations are dealt with in user space we are able to deal with them directly instead of trapping into the kernel.
+
+We sometimes want the ability to call functions from Akaros’s standard libraries, for example things like syscall, futex, yield, or enable_profalarm.
+
+There are a few issues to deal with when calling into the 2LS.
+
+The first is calling convention.
+As of this writing (Go 1.4) Go passes all of the arguments on the stack.
+While gcc (which the 2LS is compiled with) passes the first 6 arguments in registers then the rest on the stack.
+
+The next issue is linking.
+Go code is compiled separately from the 2LS code where many of the functions we want to call are; these must be fixed at link time or run time.
+
+We also have to worry about what stack we will run the function on.
+Each Go routine has its own stack which grows as needed; these events are called stack splits.
+When these happen not only is the data in the stack moved to a new location,
+but also all pointers into the stack are updated to point to their new location.
+This can cause issues because only Go pointers are updated and not C pointers.
+A more detailed description of this and how it can cause issues is found in the syscall section below.
+The C code we are calling has no knowledge of how this all works.
+Thus, before it is called we need to switch over to a stack which is safe for arbitrary code execution.
+
+
+We have two separate methods for calling GCC C code, one from Go the other from Ken C.
+
+#################################################
+Calling standard library code from Ken C
+#################################################
+
+The C side roughly lives in src/runtime/sys_akaros.c, src/runtime/parlib/gcc_akaros.c, and src/runtime/parlib/gcc_akaros.h.
+The set of functions that this has been set up for are:
+	ros_syscall_sync
+	futex, pthread_yield
+	sigaction
+	sigaltstack
+	pthread_sigmask
+	enable_profalarm
+	disable_profalarm
+To call one of these follow the example in src/runtime/sys_akaros.c.
+You need to use the wrappers defined in src/runtime/sys_akaros.c and use runtime·asmcgocall.
+Also you are limited to a single argument, so the wrappers take a pointer to a struct.
+To make a new one you need to define the struct of arguments in src/runtime/parlib/gcc_akaros.h.
+Define the wrapper and const gcc_call_t type in src/runtime/parlib/gcc_akaros.c, you can then call it with runtime·asmcgocall.
+
+The gcc prefix to the file names controls which compilier is used to compile the file
+and runtime·asmcgocall allows calling of a C function and deals with changing stacks and calling convention.
+One of the issues is its limit to a single argument.
+The linking issue is dealt with by special cgo imports and externing the functions.
+
+#################################################
+Calling standard library code from Go
+#################################################
+
+The Go side lives in the src/usys package.
+This is supposed to model a system call as much as possible.
+The first argument is what function to run followed by the arguments.
+The difference is that it does not need to change rings so we can call directly whatever function we want.
+The calling convention conversion and stack switching is done in the usys package.
+
+The set of functions that are already set up are:
+	abort_syscall_at_abs_unix
+	unset_alarm
+	go_syscall
+		which wraps ros_syscall_sync and syscall_retval_is_error which
+		ensures that errno and errstr are zero when there is no error
+	go_usys_tester
+		which is to test the usys package
+	futex
+	serialize_argv_envp
+	free
+To call one of these functions just import the usys package and use the usys Call or Call1 methods.
+These take one of the constants defined at the top of src/usys/usys.go as the first argument
+which tells which function to run then just takes the arguments to the function.
+Call takes arbitary arguments, while Call1 takes exactly one argument to the function.
+The advantage of Call1 is that in Go variable arguments are passed in as a slice which causes an extra alloc, so Call1 is preferable.
+
+The way usys works is that when you import usys the init function is run before any of your code,
+this causes a general protection fault with known high 16 bits.
+The lower 48 bits are used to pass in the address of a table.
+When the 2LS fault handler gets a fault with the correct high order bits in fills in the table with function addresses.
+Then when a Call or Call1 is made it deals with stack switching and calls the correct function pointer with the arguments directly.
+
+To add a new function you need to add it to both sides: both the fault handler and the usys package.
+In the usys package, just add to the constants at the top insuring to increment num_functions.
+In $AKAROS_ROOT/user/pthread/pthread.c in set_up_go_table, add the function you want to call.
+
+The stack issue and calling convention are dealt with by the assembly in src/usys/usys.s.
+This changes the stack and calling convention.
+We don’t have any linking issues since the code is not linked together and instead the function pointer table is set up at runtime.
+This does have the extra concern that the two sides must be kept in sync.
+There is a sentinel at the end of the table, but full checking cannot be done.
+
+Ways to improve:
+	Usys could also be used to get constants from Akaros.
+		This is currently done using cgo,
+		but if we wanted to remove cgo we could get the constants in the same was as the function pointer table is set up.
+		You could set up a second table to hold the constants and pass it in with another general protection fault
+		then set up the constants in the table in the fault handler.
+	Ideally we wouldn’t have two separate paths
+		We could combine the gcc_ path and the usys path into a single package that could be called from both C and Go code.
+		It is also possible the C path with no longer be necessary when Go removes C from its source
+
+
+#################################################
+Syscall
+#################################################
+
+One of the big users of the usys package is the syscall package.
+Syscalls now work very similar to how they work on other OS’s.
+
+There is a perl script, src/syscall/mksyscall.pl,
+which generates a function for each system call (zsyscall_akaros_amd64.go),
+some system calls need extra wrappers, others can be made entirely by the perl script.
+The ones that are wrapped use lowercase for their generated function so that function is not exported,
+it also leaves the basic name for use by the exported wrapper.
+These autogenerated functions basically just take the arguments and pass them through to whatever actually makes the system call.
+The autogenerated functions also do error checking.
+
+On most OS’s this is a small assembly function which sets up arguments and makes the syscall instruction.
+Akaros instead uses usys instead of the syscall instruction.
+This generated function also deals with the fact that Akaros syscall errors contain both an error number and a string.
+The requires an extra alloc for the object which contains both of these.
+We use usys.Call1 to limit the number of extra mallocs since Call passes the arguments in a slice and we don’t want this extra creation.
+
+This next section will walk through the old method and other solutions to the problem as an illustration in the ways that things can go wrong.
+
+We used to have the following two functions:
+
+In package syscall:
+func Syscall6(trap, a1, a2, a3, a4, a5, a6 uintptr) (r1, r2 uintptr, err error) {
+	// I have syscall numbers >=300 stubbed out since they are not yet
+	// implemented.  If we are trying to call one of those, print out a warning
+	// and return an error.
+	if trap >= 300 {
+		parlib.SyscallError(trap);
+		return r1, r2, EINVAL
+	}
+
+	// Otherwise, run the syscall!
+	__r1, __err, __errstr := parlib.Syscall(uint32(trap), int(a1), int(a2),
+	                                        int(a3), int(a4), int(a5), int(a6))
+
+	var akaerror error = nil
+	if __r1 == -1 {
+		akaerror = NewAkaError(Errno(__err), string(__errstr))
+	}
+	return uintptr(__r1), r2, akaerror
+}
+
+And in package parlib
+func Syscall(_num uint32, _a0, _a1, _a2, _a3, _a4, _a5 int) (ret int, err int32, errstr string) {
+	var syscall SyscallType
+	syscall.num = C.uint(_num)
+	syscall.ev_q = (*C.struct_event_queue)(unsafe.Pointer(nil))
+	syscall.arg0 = C.long(_a0)
+	syscall.arg1 = C.long(_a1)
+	syscall.arg2 = C.long(_a2)
+	syscall.arg3 = C.long(_a3)
+	syscall.arg4 = C.long(_a4)
+	syscall.arg5 = C.long(_a5)
+	C.ros_syscall_sync((*C.struct_syscall)(unsafe.Pointer(&syscall)))
+	return int(syscall.retval), int32(syscall.err), C.GoString(&syscall.errstr[0])
+}
+
+This allowed the generated code to be almost identical to all other OS’s
+since we could just call the Syscall6 function just like all of them called their
+own Syscall6 function (the wrapper around the syscall instruction).
+
+#################################################
+NOSPLIT
+#################################################
+
+The main issue with this is dealing with the possibility of stack splits.
+The Go compiler inserts a preamble into every function which checks how close to the end of the stack we currently are
+and if we will get too close to the end in the current function it allocates a new stack and copies over all the data.
+In this process it also fixes all pointers so that any pointer that pointed into the old stack
+now points to the corresponding object in the new stack.
+The issue with this is that the Syscall6 function took in uintptr types.
+These are to the Go compiler an int type which happens to be the same size as a ptr type.
+This means that in the event of a stack split they are not fixed.
+The way to stop these stack checks are to mark the function as nosplit.
+This stops the stack split in that function, but it only works if every function that might be called,
+and everything they might call are also nosplit.
+Also there is a total size the nosplit stack is allowed to be and it is quite small.
+
+An easy solution to the problem seems to be to mark the functions as nosplit.
+The issue with this is that nosplit functions are not able to create objects or use cgo,
+since both of these have functions that could possibly split.
+So syscall cannot be marked as nosplit since it both uses cgo and creates objects.
+
+The next solution might be to bubble up the cgo call into the individual generated functions.
+Since it is in these functions that we convert objects from their real Go types into uintptrs.
+If we place this conversion in the same place as the call into cgo we don’t have any stack splits in between.
+The issue with this is that we cannot use cgo in the syscall package.
+This is because cgo implicitly depends on syscall and using cgo in syscall would create a dependency loop.
+A solution to this is to move the individual generated functions over into Go's runtime·parlib so that they can make their direct calls into cgo.
+To be honest, this does work, but it creates a giant mess.
+Not only is the syscall logic broken into two packages,
+but also we need to duplicate struct definitions since we need these objects in both places and we need to be careful about dependency loops.
+We also need to be considerate that standard Go code will call these functions
+and not just Akaros specific code meaning changing types and signatures is difficult.
+
+This is why we use usys, everything below the usys call is nosplit and it has no dependencies.
+As a note the usys call itself cannot go in the nosplit function since it makes a slice for the variable number of arguments,
+Call1 fixes this issue, other constant argument lengths could be made in the same way if needed.
+The reason we do not have a single syscall function and which handles error checking and calling out to usys like other OS’s
+is that our errors involve a struct that has both a number and a string.
+This requires a new object, so we cannot have a general function which takes in the syscall argument and returns the result and error,
+since those arguments would have to be uintptrs, meaning we couldn’t have any splits and the creation of the struct object could cause a split.
+
+
+#################################################
+Signals
+#################################################
+The other major difference is in how we handle signals.
+The relevant code is in src/runtime/parlib/signal.go and src/runtime/sys_akaros_amd64.s.
+
+This has a lot of things that, at first, seem like a mess, but each are necessary.
+I will walk through how we process signals and try and explain how each work and why it is done the way it is.
+
+It starts with the init function in parlib.go.
+An init function runs at the start of the program whenever that package is imported.
+And if package foo imports package bar then foo’s init will run before bar’s init.
+This function installs the signal handlers using Signal, sets up the wtf variable (which will be explained later),
+and starts the process process_signals (also explained later).
+Installing a signal handler involves setting up the function in the Go table of signal handlers and installs it in the system using sigaction.
+The sigaction installed is always sig_hand declared in cgo at the top of signal.go.
+When we update the signal handler we do not update the sigaction.
+
+When a signal is triggered sig_hand is called, it first checks whether or not we are in vcore context.
+If we are in vcore context we are not able to do much of anything.
+So we kick a futex to wake up a thread so that we can process the signal from outside of vcore context.
+If we are not in vcore context we can directly call the signal handler through wtf.
+The process that is waiting on the futex is process_signals (started in init).
+This determines which signal to call (its possible multiple were triggered at once), then for the first signal calls the appropriate signal handler.
+If somebody has changed it we assume they have done so properly and we directly call whatever function they set up.
+If nobody has changed it then we convert the signal into an internal signal.
+This is done by calling a pthread_kill with the appropriate signal number and immediately yielding.
+This is done so we only need to deal with one type of signal: process-wide (run in vcore-context) signals are converted to a per-uthread signal.
+This will loop back around and trigger sig_hand once again.
+Eventually (most likely immediately) we will be in sig_hand while not in vcore context.
+
+Now the wtf variable.
+This is equal to the address of the default signal handler.
+There is some extra complexity that we need to access this both from the runtime package and the parlib package and we don’t want to have imports.
+Also we need it in both cgo code and in Go’s C code.
+Added to this is the fact that Go does not let cgo code see functions that have not been defined.
+This means that cgo code cannot directly call functions which have been defined in assembly in Go.
+We get around this by passing in the address of the function at runtime into cgo.
+The get_value function deals all the casting to get around Go’s issues with passing pointers.
+
+Moving on, once we are in sig_hand while not in vcore context we call defaultSighandler (wtf in cgo).
+This is defined in src/runtime/sys_akaros_amd64.s.
+This just does some calling convention conversion and calls sigtramp_real.
+Sigtramp_real has two cases, the first is that we are not on a g, if we are not on a g we call sig_hand and loop back around.
+This can happen if an odd thread handles the signal.
+If we are on a g we switch the that g’s signal stack and run runtime.sighandler.
+
+#################################################
+Process of updating 1.3 to 1.4
+#################################################
+Here I will explain my process for going from Go 1.3 to Go 1.4.
+I tried to be fairly systematic in my approach.
+My goal was that once I finished it would look like the Akaros port had been in development along with the main Go branch.
+
+I started with a git tree of the akros port of Go 1.3 which worked.
+I then found the split point of Go 1.3 and Go 1.4.
+I then rebased all Akaros specific commits from after the split point onto this split point.
+After this I rebased all the commits from Go 1.4 from after the split point on top of those Akaros specific commits.
+
+From this point I used a multi pass approach.
+At first I moved forward through the commit history and made sure it could compile at every point.
+This mostly involved adding function definitions for new ideas that were added.
+The second pass involved making sure all of the tests could compile.
+Lastly, the third pass involved actually running the tests.
+The goal was that at each point in the commit history I wanted the branch to work to some degree.
+
+The advantage of this multi pass approach is it was easy to see what commits broke since you could easily test the commit before and after.
+One example of this being particularly helpful is that we had lots of issues that all seemed unrelated,
+but were actually the result of changing the default size of the stack.
+By determining the commit that broke those tests just changed the size of the stack it was much easier to find and fix.
+
+
