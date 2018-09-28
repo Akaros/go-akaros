@@ -8,10 +8,6 @@ package os
 
 var Nsprefix string = ""
 
-func KernelString(buf []byte) string {
-	return string(buf[:len(buf)-1])
-}
-
 func hostname() (name string, err error) {
 	f, err := Open("/proc/sys/kernel/hostname")
 	if err != nil {
@@ -28,5 +24,5 @@ func hostname() (name string, err error) {
 	if n > 0 && buf[n-1] == '\n' {
 		n--
 	}
-	return KernelString(buf[0:n]), nil
+	return string(buf[:n]), nil
 }

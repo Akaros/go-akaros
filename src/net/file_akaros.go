@@ -64,7 +64,7 @@ func newFileFD(f *os.File) (net *netFD, err error) {
 		if err != nil {
 			return nil, err
 		}
-		name = os.KernelString(buf[:n])
+		name = string(buf[:n])
 	default:
 		if len(comp) < 4 {
 			return nil, errors.New("could not find control file for connection")
