@@ -96,6 +96,7 @@ sub parseparam($) {
 my $text = "";
 if ($akaros) {
 	$text .= "import \"usys\"\n";
+	$text .= "import \"bytes\"\n";
 }
 while(<>) {
 	chomp;
@@ -306,7 +307,8 @@ while(<>) {
 				$text .= "\t__err_num := syscall_struct.err\n";
 
 				$text .= "\tif __err_num != 0 {\n";
-				$text .= "\t\t__errstr := string(syscall_struct.errstr[:])\n";
+				$text .= "\t\t__null := bytes.IndexByte(syscall_struct.errstr[:], 0)\n";
+				$text .= "\t\t__errstr := string(syscall_struct.errstr[:__null])\n";
 				$text .= "\t\terr = NewAkaError(Errno(__err_num), __errstr)\n";
 				$text .= "\t}\n";
 			}

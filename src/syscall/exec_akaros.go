@@ -7,6 +7,7 @@
 package syscall
 
 import (
+	"bytes"
 	"unsafe"
 	"usys"
 )
@@ -131,7 +132,8 @@ func startProcess(argv0 []byte, argv, envv []*byte, dir []byte, files []uintptr)
 	r1 = uintptr(syscall_struct.retval)
 	__err_num := syscall_struct.err
 	if __err_num != 0 {
-		__errstr := string(syscall_struct.errstr[:])
+		__null := bytes.IndexByte(syscall_struct.errstr[:], 0)
+		__errstr := string(syscall_struct.errstr[:__null])
 		err = NewAkaError(Errno(__err_num), __errstr)
 	}
 	FreeSerializedData(sd)
@@ -158,7 +160,8 @@ func startProcess(argv0 []byte, argv, envv []*byte, dir []byte, files []uintptr)
 	r1 = uintptr(syscall_struct.retval)
 	__err_num = syscall_struct.err
 	if __err_num != 0 {
-		__errstr := string(syscall_struct.errstr[:])
+		__null := bytes.IndexByte(syscall_struct.errstr[:], 0)
+		__errstr := string(syscall_struct.errstr[:__null])
 		err = NewAkaError(Errno(__err_num), __errstr)
 	}
 	if err != nil {
@@ -178,7 +181,8 @@ func startProcess(argv0 []byte, argv, envv []*byte, dir []byte, files []uintptr)
 		r1 = uintptr(syscall_struct.retval)
 		__err_num = syscall_struct.err
 		if __err_num != 0 {
-			__errstr := string(syscall_struct.errstr[:])
+			__null := bytes.IndexByte(syscall_struct.errstr[:], 0)
+			__errstr := string(syscall_struct.errstr[:__null])
 			err = NewAkaError(Errno(__err_num), __errstr)
 		}
 		if err != nil {
@@ -196,7 +200,8 @@ func startProcess(argv0 []byte, argv, envv []*byte, dir []byte, files []uintptr)
 	r1 = uintptr(syscall_struct.retval)
 	__err_num = syscall_struct.err
 	if __err_num != 0 {
-		__errstr := string(syscall_struct.errstr[:])
+		__null := bytes.IndexByte(syscall_struct.errstr[:], 0)
+		__errstr := string(syscall_struct.errstr[:__null])
 		err = NewAkaError(Errno(__err_num), __errstr)
 	}
 	if err != nil {
@@ -240,7 +245,8 @@ func Exec(argv0 string, argv []string, envv []string) (err error) {
 	usys.Call1(usys.USYS_GO_SYSCALL, uintptr(unsafe.Pointer(&syscall_struct)))
 	__err_num := syscall_struct.err
 	if __err_num != 0 {
-		__errstr := string(syscall_struct.errstr[:])
+		__null := bytes.IndexByte(syscall_struct.errstr[:], 0)
+		__errstr := string(syscall_struct.errstr[:__null])
 		err = NewAkaError(Errno(__err_num), __errstr)
 	}
 	FreeSerializedData(sd)
