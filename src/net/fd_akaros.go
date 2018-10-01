@@ -37,7 +37,7 @@ func sysInit() {
 }
 
 func dial(net string, ra Addr, dialer func(time.Time) (Conn, error), deadline time.Time) (Conn, error) {
-	// On akaros, use the relatively inefficient
+	// On plan9, use the relatively inefficient
 	// goroutine-racing implementation.
 	return dialChannel(net, ra, dialer, deadline)
 }
@@ -184,14 +184,14 @@ func (fd *netFD) Write(b []byte) (n int, err error) {
 	return
 }
 
-func (fd *netFD) CloseRead() error {
+func (fd *netFD) closeRead() error {
 	if !fd.ok() {
 		return syscall.EINVAL
 	}
 	return syscall.EPLAN9
 }
 
-func (fd *netFD) CloseWrite() error {
+func (fd *netFD) closeWrite() error {
 	if !fd.ok() {
 		return syscall.EINVAL
 	}

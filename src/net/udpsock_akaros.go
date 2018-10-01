@@ -31,6 +31,8 @@ func (c *UDPConn) ReadFromUDP(b []byte) (n int, addr *UDPAddr, err error) {
 		return 0, nil, syscall.EINVAL
 	}
 	buf := make([]byte, udpHeaderSize+len(b))
+	// Akaros reads on the netFD directly, unlike Plan 9 which does a raw
+	// read on the data FD.  This might be due to our timeout code.
 	m, err := c.fd.Read(buf)
 	if err != nil {
 		return
