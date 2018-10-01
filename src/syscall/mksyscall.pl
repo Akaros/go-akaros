@@ -250,7 +250,7 @@ while(<>) {
 
 	# Actual call.
 	$text .= "\tsyscall_struct := Syscall_struct{\n\t\t$sysname,0,0,0,0,0,\n\t\t".+
-			join(',', @args).+",\n\t\t[128]byte{},\n\t}\n";
+			join(',', @args).+",\n\t\t[ErrstrMax]byte{},\n\t}\n";
 	my $call = "$asm(usys.USYS_GO_SYSCALL, uintptr(unsafe.Pointer(&syscall_struct)))";
 
 	# Assign return values.

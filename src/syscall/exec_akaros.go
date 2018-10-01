@@ -126,7 +126,7 @@ func startProcess(argv0 []byte, argv, envv []*byte, dir []byte, files []uintptr)
 	syscall_struct := Syscall_struct{
 		SYS_PROC_CREATE, 0, 0, 0, 0, 0,
 		cmd, cmdlen, sdbuf, sdlen, 0, 0,
-		[128]byte{},
+		[ErrstrMax]byte{},
 	}
 	usys.Call1(usys.USYS_GO_SYSCALL, uintptr(unsafe.Pointer(&syscall_struct)))
 	r1 = uintptr(syscall_struct.retval)
@@ -154,7 +154,7 @@ func startProcess(argv0 []byte, argv, envv []*byte, dir []byte, files []uintptr)
 	syscall_struct = Syscall_struct{
 		SYS_DUP_FDS_TO, 0, 0, 0, 0, 0,
 		child, cfdm, cfdmlen, 0, 0, 0,
-		[128]byte{},
+		[ErrstrMax]byte{},
 	}
 	usys.Call1(usys.USYS_GO_SYSCALL, uintptr(unsafe.Pointer(&syscall_struct)))
 	r1 = uintptr(syscall_struct.retval)
@@ -175,7 +175,7 @@ func startProcess(argv0 []byte, argv, envv []*byte, dir []byte, files []uintptr)
 		syscall_struct = Syscall_struct{
 			SYS_CHDIR, 0, 0, 0, 0, 0,
 			child, pwd, pwdlen, 0, 0, 0,
-			[128]byte{},
+			[ErrstrMax]byte{},
 		}
 		usys.Call1(usys.USYS_GO_SYSCALL, uintptr(unsafe.Pointer(&syscall_struct)))
 		r1 = uintptr(syscall_struct.retval)
@@ -194,7 +194,7 @@ func startProcess(argv0 []byte, argv, envv []*byte, dir []byte, files []uintptr)
 	syscall_struct = Syscall_struct{
 		SYS_PROC_RUN, 0, 0, 0, 0, 0,
 		child, 0, 0, 0, 0, 0,
-		[128]byte{},
+		[ErrstrMax]byte{},
 	}
 	usys.Call1(usys.USYS_GO_SYSCALL, uintptr(unsafe.Pointer(&syscall_struct)))
 	r1 = uintptr(syscall_struct.retval)
@@ -240,7 +240,7 @@ func Exec(argv0 string, argv []string, envv []string) (err error) {
 	syscall_struct := Syscall_struct{
 		SYS_EXEC, 0, 0, 0, 0, 0,
 		cmd, cmdlen, sdbuf, sdlen, 0, 0,
-		[128]byte{},
+		[ErrstrMax]byte{},
 	}
 	usys.Call1(usys.USYS_GO_SYSCALL, uintptr(unsafe.Pointer(&syscall_struct)))
 	__err_num := syscall_struct.err

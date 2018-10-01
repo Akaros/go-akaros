@@ -77,6 +77,7 @@ const (
 	sizeofLong     = C.sizeof_long
 	sizeofLongLong = C.sizeof_longlong
 	PathMax        = C.PATH_MAX
+	ErrstrMax      = C.MAX_ERRSTR_LEN
 )
 
 // Basic types
