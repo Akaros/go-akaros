@@ -18,7 +18,6 @@ package syscall
 #define _LARGEFILE64_SOURCE
 #define _FILE_OFFSET_BITS 64
 #define _GNU_SOURCE
-#define PATH_MAX 1024
 
 #include <dirent.h>
 #include <unistd.h>
