@@ -36,7 +36,7 @@ func query(filename, query string, bufSize int) (res []string, err error) {
 		if err != nil {
 			if err == io.EOF {
 				if len(res) == 0 {
-					return res, errors.New("net: query lookup failed, filename: " + filename + ", query: " + query)
+					return res, errors.New("query lookup failed, filename: " + filename + ", query: " + query)
 				}
 				break
 			}
@@ -70,7 +70,7 @@ func queryCS(net, host, service string) (res []string, err error) {
 		}
 		return []string{"/net/" + net + "/clone " + host + "!" + service}, nil
 	}
-	return query(os.Nsprefix+netdir+"/cs", net+"!"+host+"!"+service, 128)
+	return query(netdir+"/cs", net+"!"+host+"!"+service, 128)
 }
 
 func queryCS1(net string, ip IP, port int) (clone, dest string, err error) {
@@ -84,14 +84,14 @@ func queryCS1(net string, ip IP, port int) (clone, dest string, err error) {
 	}
 	f := getFields(lines[0])
 	if len(f) < 2 {
-		return "", "", errors.New("net: bad response from ndb/cs")
+		return "", "", errors.New("bad response from ndb/cs")
 	}
 	clone, dest = f[0], f[1]
 	return
 }
 
 func queryDNS(addr string, typ string) (res []string, err error) {
-	return query(os.Nsprefix+netdir+"/dns", addr+" "+typ, 1024)
+	return query(netdir+"/dns", addr+" "+typ, 1024)
 }
 
 // toLower returns a lower-case version of in. Restricting us to
@@ -118,7 +118,7 @@ func toLower(in string) string {
 // lookupProtocol looks up IP protocol name and returns
 // the corresponding protocol number.
 func lookupProtocol(name string) (proto int, err error) {
-	lines, err := query(os.Nsprefix+netdir+"/cs", "!protocol="+toLower(name), 128)
+	lines, err := query(netdir+"/cs", "!protocol="+toLower(name), 128)
 	if err != nil {
 		return 0, err
 	}
@@ -220,7 +220,7 @@ func lookupCNAME(name string) (cname string, err error) {
 			return f[2] + ".", nil
 		}
 	}
-	return "", errors.New("net: bad response from ndb/dns")
+	return "", errors.New("bad response from ndb/dns")
 }
 
 func lookupSRV(service, proto, name string) (cname string, addrs []*SRV, err error) {

@@ -6,8 +6,6 @@
 
 package os
 
-var Nsprefix string = ""
-
 func hostname() (name string, err error) {
 	f, err := Open("/proc/sys/kernel/hostname")
 	if err != nil {

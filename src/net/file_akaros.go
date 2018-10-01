@@ -56,7 +56,7 @@ func newFileFD(f *os.File) (net *netFD, err error) {
 		}
 		defer close(fd)
 
-		dir := os.Nsprefix + netdir + "/" + comp[n-2]
+		dir := netdir + "/" + comp[n-2]
 		ctl = os.NewFile(uintptr(fd), dir+"/"+file)
 		ctl.Seek(0, 0)
 		var buf [16]byte
@@ -69,14 +69,14 @@ func newFileFD(f *os.File) (net *netFD, err error) {
 		if len(comp) < 4 {
 			return nil, errors.New("could not find control file for connection")
 		}
-		dir := os.Nsprefix + netdir + "/" + comp[1] + "/" + name
+		dir := netdir + "/" + comp[1] + "/" + name
 		ctl, err = os.OpenFile(dir+"/ctl", os.O_RDWR, 0)
 		if err != nil {
 			return nil, err
 		}
 		defer close(int(ctl.Fd()))
 	}
-	dir := os.Nsprefix + netdir + "/" + comp[1] + "/" + name
+	dir := netdir + "/" + comp[1] + "/" + name
 	laddr, err := readPlan9Addr(comp[1], dir+"/local")
 	if err != nil {
 		return nil, err

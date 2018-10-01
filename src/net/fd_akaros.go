@@ -43,7 +43,7 @@ func dial(net string, ra Addr, dialer func(time.Time) (Conn, error), deadline ti
 }
 
 func newFD(proto, name string, ctl, data *os.File, laddr, raddr Addr) (*netFD, error) {
-	return &netFD{proto: proto, n: name, dir: os.Nsprefix + netdir + "/" + proto + "/" + name, ctl: ctl, data: data, laddr: laddr, raddr: raddr}, nil
+	return &netFD{proto: proto, n: name, dir: netdir + "/" + proto + "/" + name, ctl: ctl, data: data, laddr: laddr, raddr: raddr}, nil
 }
 
 func (fd *netFD) init() error {
