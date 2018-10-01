@@ -56,14 +56,14 @@ func (c *TCPConn) CloseWrite() error {
 // If sec > 0, Close blocks for at most sec seconds waiting for data
 // to be sent and acknowledged.
 func (c *TCPConn) SetLinger(sec int) error {
-	return syscall.EMORON
+	return syscall.EPLAN9
 }
 
 // SetKeepAlive sets whether the operating system should send
 // keepalive messages on the connection.
 func (c *TCPConn) SetKeepAlive(keepalive bool) error {
 	if !c.ok() {
-		return syscall.EMORON
+		return syscall.EPLAN9
 	}
 	return setKeepAlive(c.fd, keepalive)
 }
@@ -71,7 +71,7 @@ func (c *TCPConn) SetKeepAlive(keepalive bool) error {
 // SetKeepAlivePeriod sets period between keep alives.
 func (c *TCPConn) SetKeepAlivePeriod(d time.Duration) error {
 	if !c.ok() {
-		return syscall.EMORON
+		return syscall.EPLAN9
 	}
 	return setKeepAlivePeriod(c.fd, d)
 }
@@ -81,7 +81,7 @@ func (c *TCPConn) SetKeepAlivePeriod(d time.Duration) error {
 // algorithm).  The default is true (no delay), meaning that data is
 // sent as soon as possible after a Write.
 func (c *TCPConn) SetNoDelay(noDelay bool) error {
-	return syscall.EMORON
+	return syscall.EPLAN9
 }
 
 // DialTCP connects to the remote address raddr on the network net,

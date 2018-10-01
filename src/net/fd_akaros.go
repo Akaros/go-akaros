@@ -188,14 +188,14 @@ func (fd *netFD) CloseRead() error {
 	if !fd.ok() {
 		return syscall.EINVAL
 	}
-	return syscall.EMORON
+	return syscall.EPLAN9
 }
 
 func (fd *netFD) CloseWrite() error {
 	if !fd.ok() {
 		return syscall.EINVAL
 	}
-	return syscall.EMORON
+	return syscall.EPLAN9
 }
 
 func (fd *netFD) Close() error {
@@ -258,11 +258,11 @@ func (fd *netFD) setWriteDeadline(t time.Time) error {
 }
 
 func setReadBuffer(fd *netFD, bytes int) error {
-	return syscall.EMORON
+	return syscall.EPLAN9
 }
 
 func setWriteBuffer(fd *netFD, bytes int) error {
-	return syscall.EMORON
+	return syscall.EPLAN9
 }
 
 func skipRawSocketTests() (skip bool, skipmsg string, err error) {

@@ -24,12 +24,12 @@ type UnixConn struct {
 // Timeout() == true after a fixed time limit; see SetDeadline and
 // SetReadDeadline.
 func (c *UnixConn) ReadFromUnix(b []byte) (int, *UnixAddr, error) {
-	return 0, nil, syscall.EMORON
+	return 0, nil, syscall.EPLAN9
 }
 
 // ReadFrom implements the PacketConn ReadFrom method.
 func (c *UnixConn) ReadFrom(b []byte) (int, Addr, error) {
-	return 0, nil, syscall.EMORON
+	return 0, nil, syscall.EPLAN9
 }
 
 // ReadMsgUnix reads a packet from c, copying the payload into b and
@@ -37,7 +37,7 @@ func (c *UnixConn) ReadFrom(b []byte) (int, Addr, error) {
 // bytes copied into b, the number of bytes copied into oob, the flags
 // that were set on the packet, and the source address of the packet.
 func (c *UnixConn) ReadMsgUnix(b, oob []byte) (n, oobn, flags int, addr *UnixAddr, err error) {
-	return 0, 0, 0, nil, syscall.EMORON
+	return 0, 0, 0, nil, syscall.EPLAN9
 }
 
 // WriteToUnix writes a packet to addr via c, copying the payload from b.
@@ -47,31 +47,31 @@ func (c *UnixConn) ReadMsgUnix(b, oob []byte) (n, oobn, flags int, addr *UnixAdd
 // SetWriteDeadline.  On packet-oriented connections, write timeouts
 // are rare.
 func (c *UnixConn) WriteToUnix(b []byte, addr *UnixAddr) (int, error) {
-	return 0, syscall.EMORON
+	return 0, syscall.EPLAN9
 }
 
 // WriteTo implements the PacketConn WriteTo method.
 func (c *UnixConn) WriteTo(b []byte, addr Addr) (int, error) {
-	return 0, syscall.EMORON
+	return 0, syscall.EPLAN9
 }
 
 // WriteMsgUnix writes a packet to addr via c, copying the payload
 // from b and the associated out-of-band data from oob.  It returns
 // the number of payload and out-of-band bytes written.
 func (c *UnixConn) WriteMsgUnix(b, oob []byte, addr *UnixAddr) (n, oobn int, err error) {
-	return 0, 0, syscall.EMORON
+	return 0, 0, syscall.EPLAN9
 }
 
 // CloseRead shuts down the reading side of the Unix domain connection.
 // Most callers should just use Close.
 func (c *UnixConn) CloseRead() error {
-	return syscall.EMORON
+	return syscall.EPLAN9
 }
 
 // CloseWrite shuts down the writing side of the Unix domain connection.
 // Most callers should just use Close.
 func (c *UnixConn) CloseWrite() error {
-	return syscall.EMORON
+	return syscall.EPLAN9
 }
 
 // DialUnix connects to the remote address raddr on the network net,
@@ -82,7 +82,7 @@ func DialUnix(net string, laddr, raddr *UnixAddr) (*UnixConn, error) {
 }
 
 func dialUnix(net string, laddr, raddr *UnixAddr, deadline time.Time) (*UnixConn, error) {
-	return nil, syscall.EMORON
+	return nil, syscall.EPLAN9
 }
 
 // UnixListener is a Unix domain socket listener.  Clients should
@@ -93,25 +93,25 @@ type UnixListener struct{}
 // ListenUnix announces on the Unix domain socket laddr and returns a
 // Unix listener.  The network net must be "unix" or "unixpacket".
 func ListenUnix(net string, laddr *UnixAddr) (*UnixListener, error) {
-	return nil, syscall.EMORON
+	return nil, syscall.EPLAN9
 }
 
 // AcceptUnix accepts the next incoming call and returns the new
 // connection.
 func (l *UnixListener) AcceptUnix() (*UnixConn, error) {
-	return nil, syscall.EMORON
+	return nil, syscall.EPLAN9
 }
 
 // Accept implements the Accept method in the Listener interface; it
 // waits for the next call and returns a generic Conn.
 func (l *UnixListener) Accept() (Conn, error) {
-	return nil, syscall.EMORON
+	return nil, syscall.EPLAN9
 }
 
 // Close stops listening on the Unix address.  Already accepted
 // connections are not closed.
 func (l *UnixListener) Close() error {
-	return syscall.EMORON
+	return syscall.EPLAN9
 }
 
 // Addr returns the listener's network address.
@@ -120,7 +120,7 @@ func (l *UnixListener) Addr() Addr { return nil }
 // SetDeadline sets the deadline associated with the listener.
 // A zero time value disables the deadline.
 func (l *UnixListener) SetDeadline(t time.Time) error {
-	return syscall.EMORON
+	return syscall.EPLAN9
 }
 
 // File returns a copy of the underlying os.File, set to blocking
@@ -131,7 +131,7 @@ func (l *UnixListener) SetDeadline(t time.Time) error {
 // connection's.  Attempting to change properties of the original
 // using this duplicate may or may not have the desired effect.
 func (l *UnixListener) File() (*os.File, error) {
-	return nil, syscall.EMORON
+	return nil, syscall.EPLAN9
 }
 
 // ListenUnixgram listens for incoming Unix datagram packets addressed
@@ -139,5 +139,5 @@ func (l *UnixListener) File() (*os.File, error) {
 // The returned connection's ReadFrom and WriteTo methods can be used
 // to receive and send packets with per-packet addressing.
 func ListenUnixgram(net string, laddr *UnixAddr) (*UnixConn, error) {
-	return nil, syscall.EMORON
+	return nil, syscall.EPLAN9
 }

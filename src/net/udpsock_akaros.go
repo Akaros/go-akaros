@@ -59,7 +59,7 @@ func (c *UDPConn) ReadFrom(b []byte) (int, Addr, error) {
 // flags that were set on the packet and the source address of the
 // packet.
 func (c *UDPConn) ReadMsgUDP(b, oob []byte) (n, oobn, flags int, addr *UDPAddr, err error) {
-	return 0, 0, 0, nil, syscall.EMORON
+	return 0, 0, 0, nil, syscall.EPLAN9
 }
 
 // WriteToUDP writes a UDP packet to addr via c, copying the payload
@@ -105,7 +105,7 @@ func (c *UDPConn) WriteTo(b []byte, addr Addr) (int, error) {
 // b and the associated out-of-band data from oob.  It returns the
 // number of payload and out-of-band bytes written.
 func (c *UDPConn) WriteMsgUDP(b, oob []byte, addr *UDPAddr) (n, oobn int, err error) {
-	return 0, 0, syscall.EMORON
+	return 0, 0, syscall.EPLAN9
 }
 
 // DialUDP connects to the remote address raddr on the network net,
@@ -199,5 +199,5 @@ func ListenUDP(net string, laddr *UDPAddr) (*UDPConn, error) {
 // interface to join.  ListenMulticastUDP uses default multicast
 // interface if ifi is nil.
 func ListenMulticastUDP(net string, ifi *Interface, gaddr *UDPAddr) (*UDPConn, error) {
-	return nil, syscall.EMORON
+	return nil, syscall.EPLAN9
 }

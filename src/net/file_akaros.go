@@ -44,7 +44,7 @@ func newFileFD(f *os.File) (net *netFD, err error) {
 	comp := splitAtBytes(path, "/")
 	n := len(comp)
 	if n < 3 || comp[0][0:3] != "net" {
-		return nil, syscall.EMORON
+		return nil, syscall.EPLAN9
 	}
 
 	name := comp[2]
@@ -104,7 +104,7 @@ func newFileConn(f *os.File) (c Conn, err error) {
 	case *UDPAddr:
 		return newUDPConn(fd), nil
 	}
-	return nil, syscall.EMORON
+	return nil, syscall.EPLAN9
 }
 
 func newFileListener(f *os.File) (l Listener, err error) {
@@ -115,7 +115,7 @@ func newFileListener(f *os.File) (l Listener, err error) {
 	switch fd.laddr.(type) {
 	case *TCPAddr:
 	default:
-		return nil, syscall.EMORON
+		return nil, syscall.EPLAN9
 	}
 
 	// check that file corresponds to a listener
@@ -151,5 +151,5 @@ func FileListener(f *os.File) (l Listener, err error) {
 // responsibility to close f when finished.  Closing c does not affect
 // f, and closing f does not affect c.
 func FilePacketConn(f *os.File) (c PacketConn, err error) {
-	return nil, syscall.EMORON
+	return nil, syscall.EPLAN9
 }
