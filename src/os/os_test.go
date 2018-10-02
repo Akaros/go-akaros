@@ -673,9 +673,6 @@ func TestStartProcess(t *testing.T) {
 	case "android", "nacl":
 		t.Skipf("skipping on %s", runtime.GOOS)
 	}
-	if runtime.GOOS == "akaros" {
-		t.Skip("skipping on akaros")
-	}
 
 	var dir, cmd string
 	var args []string
