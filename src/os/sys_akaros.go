@@ -1,26 +1,26 @@
-// Copyright 2009 The Go Authors. All rights reserved.
+// Copyright 2011 The Go Authors. All rights reserved.
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// Akaros-specific
+// Plan 9-specific
 
 package os
 
 func hostname() (name string, err error) {
-	f, err := Open("/proc/sys/kernel/hostname")
+	f, err := Open("#cons/hostname")
 	if err != nil {
 		return "", err
 	}
 	defer f.Close()
 
-	var buf [512]byte // Enough for a DNS name.
-	n, err := f.Read(buf[0:])
+	var buf [128]byte
+	n, err := f.Read(buf[:len(buf)-1])
+
 	if err != nil {
 		return "", err
 	}
-
-	if n > 0 && buf[n-1] == '\n' {
-		n--
+	if n > 0 {
+		buf[n] = 0
 	}
-	return string(buf[:n]), nil
+	return string(buf[0:n]), nil
 }
