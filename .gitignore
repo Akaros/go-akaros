@@ -39,9 +39,9 @@ src/go/doc/headscan
 src/runtime/mkversion
 src/runtime/zaexperiment.h
 src/runtime/zversion.go
-src/runtime/defs_akaros_*.h
 src/runtime/parlib/z*
 src/syscall/z*akaros*
+src/runtime/z*
 !src/syscall/zerrorstrings_akaros_*.go
 src/unicode/maketables
 src/*.*/
@@ -55,3 +55,5 @@ VERSION.cache
 
 bin/
 pkg/
+
+*.test
