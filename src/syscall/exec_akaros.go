@@ -143,11 +143,14 @@ func startProcess(argv0 []byte, argv, envv []*byte, dir []byte, files []uintptr)
 	child := r1
 
 	// Dup the fd map properly into the child
-	__cfdm := make([]Childfdmap_t, len(files))
+	__cfdm := make([]Childfdmap_t, 0, len(files))
 	for i, f := range files {
-		__cfdm[i].Parentfd = uint32(f)
-		__cfdm[i].Childfd = uint32(i)
-		__cfdm[i].Ok = int32(-1)
+		if int(f) < 0 {
+			continue
+		}
+		__cfdm = append(__cfdm, Childfdmap_t{Parentfd: uint32(f),
+		                                     Childfd: uint32(i),
+		                                     Ok: int32(-1)})
 	}
 	cfdm := uintptr(unsafe.Pointer(&__cfdm[0]))
 	cfdmlen := uintptr(len(__cfdm))
