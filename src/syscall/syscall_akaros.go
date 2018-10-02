@@ -190,6 +190,10 @@ type Syscall_struct struct {
 //sys	Getcwd(buf []byte, length int) (n int, err error)
 //sys	Wstat(path string, pathlen int, stat_m []byte, flags int) (err error)
 //sys	Fwstat(fd int, stat_m []byte, flags int) (err error)
+//sys	ProcCreate(cmd []byte, sd uintptr, sdlen uintptr, fl int) (pid int, err error)
+//sys	DupFdsTo(child int, fdmap *Childfdmap_t, nr_fd int) (n int, err error)
+//sys	ProcRun(child int) (err error)
+//sys	exec(cmd []byte, sd uintptr, sdlen uintptr) (err error)
 
 // Locally wrapped syscalls
 //sys	openat(fromfd int, path string, pathlen int, flags int, mode uint32) (fd int, err error)

@@ -7,7 +7,6 @@
 package syscall
 
 import (
-	"bytes"
 	"unsafe"
 	"usys"
 )
@@ -44,9 +43,11 @@ func SlicePtrFromStrings(ss []string) ([]*byte, error) {
 	return bb, nil
 }
 
+// This is allocated in C, and must stay in sync with parlib/serialize.h.  Buf
+// is an open-ended C array.
 type SerializedData struct {
-	Len uint64
-	Buf [8]byte
+	Len uintptr
+	Buf [1]byte
 }
 
 func SerializeArgvEnvp(argv []*byte, envp []*byte) (sd *SerializedData, err error) {
@@ -60,6 +61,10 @@ func SerializeArgvEnvp(argv []*byte, envp []*byte) (sd *SerializedData, err erro
 		sd = (*SerializedData)(unsafe.Pointer(uintptr(__sd)))
 	}
 	return sd, err
+}
+
+func getSDBuffer(sd *SerializedData) uintptr {
+	return uintptr(unsafe.Pointer(&sd.Buf[0]))
 }
 
 func FreeSerializedData(sd *SerializedData) {
@@ -89,60 +94,34 @@ func StartProcess(argv0 string, argv []string, attr *ProcAttr) (pid int, handle 
 		return 0, 0, err
 	}
 
-	var dir []byte
-	if attr.Dir != "" {
-		dir, err = ByteSliceFromString(attr.Dir)
-		if err != nil {
-			return 0, 0, err
-		}
-	}
-
 	// Kick off child.
-	pid, err = startProcess(argv0p, argvp, envvp, dir, attr.Files)
+	pid, err = startProcess(argv0p, argvp, envvp, attr.Dir, attr.Files)
 
 	// Return the pid and the error if there was one
 	return pid, 0, err
 }
 
-func startProcess(argv0 []byte, argv, envv []*byte, dir []byte, files []uintptr) (pid int, err error) {
-	var r1 uintptr
-
+func startProcess(argv0 []byte, argv, envv []*byte, dir string, files []uintptr) (pid int, err error) {
 	// Adjust argv0 to prepend 'dir' if argv0 is a relative path
 	if argv0[0] != '/' {
 		if len(dir) > 0 {
-			argv0 = append(dir[:len(dir)-1], append([]byte{'/'}, argv0...)...)
+			argv0 = append([]byte(dir[:len(dir)-1]),
+			               append([]byte{'/'}, argv0...)...)
 		}
 	}
 
-	// Call proc create to create a child.
-	cmd := uintptr(unsafe.Pointer(&argv0[0]))
-	cmdlen := uintptr(len(argv0))
 	sd, err := SerializeArgvEnvp(argv, envv)
 	if err != nil {
 		return 0, err
 	}
-	sdbuf := uintptr(unsafe.Pointer(&sd.Buf[0]))
-	sdlen := uintptr(sd.Len)
-	syscall_struct := Syscall_struct{
-		SYS_PROC_CREATE, 0, 0, 0, 0, 0,
-		cmd, cmdlen, sdbuf, sdlen, 0, 0,
-		[ErrstrMax]byte{},
-	}
-	usys.Call1(usys.USYS_GO_SYSCALL, uintptr(unsafe.Pointer(&syscall_struct)))
-	r1 = uintptr(syscall_struct.retval)
-	__err_num := syscall_struct.err
-	if __err_num != 0 {
-		__null := bytes.IndexByte(syscall_struct.errstr[:], 0)
-		__errstr := string(syscall_struct.errstr[:__null])
-		err = NewAkaError(Errno(__err_num), __errstr)
-	}
+	// sd was allocated in C, so it's not a Go object/pointer.  We don't
+	// need to worry about stack splits or garbage collection.
+	child, err := ProcCreate(argv0, getSDBuffer(sd), sd.Len, 0)
 	FreeSerializedData(sd)
 	if err != nil {
 		return 0, err
 	}
-	child := r1
 
-	// Dup the fd map properly into the child
 	__cfdm := make([]Childfdmap_t, 0, len(files))
 	for i, f := range files {
 		if int(f) < 0 {
@@ -152,67 +131,27 @@ func startProcess(argv0 []byte, argv, envv []*byte, dir []byte, files []uintptr)
 		                                     Childfd: uint32(i),
 		                                     Ok: int32(-1)})
 	}
-	cfdm := uintptr(unsafe.Pointer(&__cfdm[0]))
-	cfdmlen := uintptr(len(__cfdm))
-	syscall_struct = Syscall_struct{
-		SYS_DUP_FDS_TO, 0, 0, 0, 0, 0,
-		child, cfdm, cfdmlen, 0, 0, 0,
-		[ErrstrMax]byte{},
-	}
-	usys.Call1(usys.USYS_GO_SYSCALL, uintptr(unsafe.Pointer(&syscall_struct)))
-	r1 = uintptr(syscall_struct.retval)
-	__err_num = syscall_struct.err
-	if __err_num != 0 {
-		__null := bytes.IndexByte(syscall_struct.errstr[:], 0)
-		__errstr := string(syscall_struct.errstr[:__null])
-		err = NewAkaError(Errno(__err_num), __errstr)
-	}
+
+	// We're relying on the slice internals; that the contents are an array
+	// of objects.
+	_, err = DupFdsTo(child, &__cfdm[0], len(__cfdm))
 	if err != nil {
 		return 0, err
 	}
 
-	// If 'dir' passed in, set the pwd of the child
 	if len(dir) > 0 {
-		pwd := uintptr(unsafe.Pointer(&dir[0]))
-		pwdlen := uintptr(len(dir))
-		syscall_struct = Syscall_struct{
-			SYS_CHDIR, 0, 0, 0, 0, 0,
-			child, pwd, pwdlen, 0, 0, 0,
-			[ErrstrMax]byte{},
-		}
-		usys.Call1(usys.USYS_GO_SYSCALL, uintptr(unsafe.Pointer(&syscall_struct)))
-		r1 = uintptr(syscall_struct.retval)
-		__err_num = syscall_struct.err
-		if __err_num != 0 {
-			__null := bytes.IndexByte(syscall_struct.errstr[:], 0)
-			__errstr := string(syscall_struct.errstr[:__null])
-			err = NewAkaError(Errno(__err_num), __errstr)
-		}
+		err = chdir(child, dir, len(dir))
 		if err != nil {
 			return 0, err
 		}
 	}
 
-	// Now run the child!
-	syscall_struct = Syscall_struct{
-		SYS_PROC_RUN, 0, 0, 0, 0, 0,
-		child, 0, 0, 0, 0, 0,
-		[ErrstrMax]byte{},
-	}
-	usys.Call1(usys.USYS_GO_SYSCALL, uintptr(unsafe.Pointer(&syscall_struct)))
-	r1 = uintptr(syscall_struct.retval)
-	__err_num = syscall_struct.err
-	if __err_num != 0 {
-		__null := bytes.IndexByte(syscall_struct.errstr[:], 0)
-		__errstr := string(syscall_struct.errstr[:__null])
-		err = NewAkaError(Errno(__err_num), __errstr)
-	}
+	err = ProcRun(child)
 	if err != nil {
 		return 0, err
 	}
 
-	// Return the child pid
-	return int(child), nil
+	return child, nil
 }
 
 // Ordinary exec.
@@ -230,28 +169,11 @@ func Exec(argv0 string, argv []string, envv []string) (err error) {
 	if err != nil {
 		return err
 	}
-
-	// exec to new cmd
-	cmd := uintptr(unsafe.Pointer(&argv0p[0]))
-	cmdlen := uintptr(len(argv0))
 	sd, err := SerializeArgvEnvp(argvp, envvp)
 	if err != nil {
 		return err
 	}
-	sdbuf := uintptr(unsafe.Pointer(&sd.Buf[0]))
-	sdlen := uintptr(sd.Len)
-	syscall_struct := Syscall_struct{
-		SYS_EXEC, 0, 0, 0, 0, 0,
-		cmd, cmdlen, sdbuf, sdlen, 0, 0,
-		[ErrstrMax]byte{},
-	}
-	usys.Call1(usys.USYS_GO_SYSCALL, uintptr(unsafe.Pointer(&syscall_struct)))
-	__err_num := syscall_struct.err
-	if __err_num != 0 {
-		__null := bytes.IndexByte(syscall_struct.errstr[:], 0)
-		__errstr := string(syscall_struct.errstr[:__null])
-		err = NewAkaError(Errno(__err_num), __errstr)
-	}
+	err = exec(argv0p, getSDBuffer(sd), sd.Len)
 	FreeSerializedData(sd)
 	return err
 }
