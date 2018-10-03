@@ -7,17 +7,23 @@ export CC_FOR_TARGET=x86_64-ucb-akaros-gcc
 export CXX_FOR_TARGET=x86_64-ucb-akaros-g++
 export GO_EXTLINK_ENABLED=1
 export CGO_ENABLED=1
-pre_host_build()
-{
-	# The host bootstrap tool needs this file to exist, even though we don't
-	# need it right away and autogenerate it later on.
-	touch runtime/defs_${GOOS}_${GOARCH}.h
-}
+
 pre_target_build()
 {
 	export CGO_ENABLED=1
 
 	# Regenerate all of the files needed by the runtime package
+	#
+	# The host bootstrap tool needs defs_akaros_amd64.h to exist for its
+	# "dist boostrap" command (before Building packages and commands for
+	# host).  If the file is empty, some part of our runtime build fails -
+	# even if this code autogenerates the defs file first.  Perhaps the
+	# file's contents affect something else in the pipeline *before*
+	# pre_target_build, which affects the compilation afterwards.
+	#
+	# Regardless, we'll autogenerate it again.  Any changes to
+	# defs_akaros.go will change defs_akaros_amd64.h, which we'll catch
+	# with git.
 	local ROSINC=$($CC_FOR_TARGET --print-sysroot)/usr/include
 	cd runtime
 	cp $ROSINC/ros/bits/syscall.h zsyscall_${GOOS}.h
@@ -36,7 +42,6 @@ post_target_build()
 	unset CGO_ENABLED
 }
 
-export -f pre_host_build
 export -f pre_target_build
 export -f post_target_build
 
