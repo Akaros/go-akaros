@@ -152,6 +152,9 @@ while(<>) {
 			$text .= "\t_p$n, $errvar = BytePtrFromString($name)\n";
 			$text .= "\tif $errvar != nil {\n\t\treturn\n\t}\n";
 			push @args, "uintptr(unsafe.Pointer(_p$n))";
+			if ($akaros) {
+				push @args, "uintptr(len($name))";
+			}
 			push @uses, "use(unsafe.Pointer(_p$n))";
 			$n++;
 		} elsif($type eq "string") {
@@ -159,6 +162,9 @@ while(<>) {
 			$text .= "\tvar _p$n *byte\n";
 			$text .= "\t_p$n, _ = BytePtrFromString($name)\n";
 			push @args, "uintptr(unsafe.Pointer(_p$n))";
+			if ($akaros) {
+				push @args, "uintptr(len($name))";
+			}
 			push @uses, "use(unsafe.Pointer(_p$n))";
 			$n++;
 		} elsif($type =~ /^\[\](.*)/) {

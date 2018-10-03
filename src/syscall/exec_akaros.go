@@ -140,7 +140,7 @@ func startProcess(argv0 []byte, argv, envv []*byte, dir string, files []uintptr)
 	}
 
 	if len(dir) > 0 {
-		err = chdir(child, dir, len(dir))
+		err = chdir(child, dir)
 		if err != nil {
 			return 0, err
 		}

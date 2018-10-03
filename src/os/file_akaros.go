@@ -292,7 +292,7 @@ func Truncate(name string, size int64) error {
 	if err != nil {
 		return &PathError{"truncate", name, err}
 	}
-	if err = syscall.Wstat(name, len(name), buf[:n], syscall.WSTAT_LENGTH); err != nil {
+	if err = syscall.Wstat(name, buf[:n], syscall.WSTAT_LENGTH); err != nil {
 		return &PathError{"truncate", name, err}
 	}
 	return nil
@@ -426,7 +426,7 @@ func Chmod(name string, mode FileMode) error {
 	if err != nil {
 		return &PathError{"chmod", name, err}
 	}
-	if err = syscall.Wstat(name, len(name), buf[:n], syscall.WSTAT_MODE); err != nil {
+	if err = syscall.Wstat(name, buf[:n], syscall.WSTAT_MODE); err != nil {
 		return &PathError{"chmod", name, err}
 	}
 	return nil
@@ -517,7 +517,7 @@ func Chtimes(name string, atime time.Time, mtime time.Time) error {
 	if err != nil {
 		return &PathError{"chtimes", name, err}
 	}
-	if err = syscall.Wstat(name, len(name), buf[:n], syscall.WSTAT_MTIME|syscall.WSTAT_ATIME); err != nil {
+	if err = syscall.Wstat(name, buf[:n], syscall.WSTAT_MTIME|syscall.WSTAT_ATIME); err != nil {
 		return &PathError{"chtimes", name, err}
 	}
 	return nil
